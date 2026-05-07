@@ -43,7 +43,7 @@ type DashboardData = {
 
 type ThemeMode = "light" | "dark";
 type ActiveTab = "overview" | "devices" | "alerts" | "plant";
-const refreshMs = 45_000;
+const refreshMs = 30_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
 const tabs: Array<{ id: ActiveTab; label: string; icon: typeof Home }> = [
