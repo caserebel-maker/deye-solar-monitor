@@ -383,15 +383,21 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
   const chargeKw = powerKw(station.chargePower);
   const dischargeKw = powerKw(station.dischargePower);
   const purchaseKw = powerKw(station.purchasePower);
-  const exportKw = powerKw(station.wirePower);
+  const wireKw = powerKw(station.wirePower);
   const rawBatteryKw = station.batteryPower !== undefined ? powerKw(station.batteryPower) : dischargeKw - chargeKw;
   const batteryDischargeKw = Math.max(dischargeKw, rawBatteryKw, 0);
   const batteryChargeKw = Math.max(chargeKw, -rawBatteryKw, 0);
   const batteryPowerKw = Number((batteryDischargeKw - batteryChargeKw).toFixed(3));
-  const rawGridKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - exportKw;
-  const canExportSolar = solarKw > 0.05;
-  const gridImportKw = Math.max(purchaseKw, rawGridKw, canExportSolar ? 0 : exportKw, 0);
-  const gridExportKw = canExportSolar ? Math.max(exportKw, -rawGridKw, 0) : 0;
+  const rawGridKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - wireKw;
+  const solarSurplusKw = Math.max(solarKw - loadKw - batteryChargeKw, 0);
+  const gridImportKw =
+    station.gridPower !== undefined
+      ? Math.max(purchaseKw, rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, 0)
+      : Math.max(purchaseKw, rawGridKw > 0 ? rawGridKw : 0, 0);
+  const gridExportKw =
+    station.gridPower !== undefined
+      ? Math.max(rawGridKw > 0.005 ? rawGridKw : 0, 0)
+      : Math.min(Math.max(wireKw, rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, 0), solarSurplusKw);
   const gridPowerKw = Number((gridImportKw - gridExportKw).toFixed(3));
   const today = month?.stationDataItems?.at(-1);
   const monthTotals = month?.stationDataItems ?? [];
