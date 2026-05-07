@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type DataSource = "live" | "mock";
 export type SystemStatus = "online" | "warning" | "error" | "offline";
 
@@ -57,11 +59,86 @@ export type SolarAlarms = {
 
 type DeyeConfig = {
   baseUrl?: string;
+  appId?: string;
+  appSecret?: string;
   apiKey?: string;
   username?: string;
+  email?: string;
   password?: string;
+  companyId?: string;
   stationId?: string;
   deviceId?: string;
+  loggerSn?: string;
+};
+
+type DeyeStationLatest = {
+  success?: boolean;
+  msg?: string;
+  generationPower?: number;
+  consumptionPower?: number;
+  gridPower?: number;
+  purchasePower?: number;
+  wirePower?: number;
+  chargePower?: number;
+  dischargePower?: number;
+  batteryPower?: number;
+  batterySOC?: number;
+  lastUpdateTime?: string;
+};
+
+type DeyeStationDataItem = {
+  timeStamp?: string;
+  year?: number;
+  month?: number;
+  day?: number;
+  generationPower?: number;
+  consumptionPower?: number;
+  gridPower?: number;
+  purchasePower?: number;
+  wirePower?: number;
+  chargePower?: number;
+  dischargePower?: number;
+  batteryPower?: number;
+  batterySOC?: number;
+  generationValue?: number;
+  consumptionValue?: number;
+};
+
+type DeyeStationHistory = {
+  success?: boolean;
+  msg?: string;
+  stationDataItems?: DeyeStationDataItem[];
+};
+
+type DeyeAlertItem = {
+  alertCode?: string;
+  alertEndTime?: number;
+  alertId?: string;
+  alertName?: string;
+  alertStartTime?: number;
+  description?: string;
+  deviceSn?: string;
+  deviceType?: string;
+  impact?: number;
+  level?: number;
+  protocolName?: string;
+  reason?: string;
+  solution?: string;
+  status?: number;
+};
+
+type DeyeStationAlerts = {
+  success?: boolean;
+  msg?: string;
+  stationAlertItems?: DeyeAlertItem[];
+  alertList?: DeyeAlertItem[];
+};
+
+type TokenResponse = {
+  success?: boolean;
+  msg?: string;
+  accessToken?: string;
+  tokenType?: string;
 };
 
 const numberOr = (value: unknown, fallback: number) => {
@@ -73,17 +150,29 @@ const nowIso = () => new Date().toISOString();
 
 function getConfig(): DeyeConfig {
   return {
-    baseUrl: process.env.DEYE_API_BASE_URL,
+    baseUrl: process.env.DEYE_API_BASE_URL ?? "https://eu1-developer.deyecloud.com/v1.0",
+    appId: process.env.DEYE_APP_ID,
+    appSecret: process.env.DEYE_APP_SECRET,
     apiKey: process.env.DEYE_API_KEY,
     username: process.env.DEYE_USERNAME,
+    email: process.env.DEYE_EMAIL,
     password: process.env.DEYE_PASSWORD,
+    companyId: process.env.DEYE_COMPANY_ID ?? "0",
     stationId: process.env.DEYE_STATION_ID,
     deviceId: process.env.DEYE_DEVICE_ID,
+    loggerSn: process.env.DEYE_LOGGER_SN,
   };
 }
 
 function hasLiveConfig(config: DeyeConfig) {
-  return Boolean(config.baseUrl && config.apiKey && config.stationId);
+  return Boolean(
+    config.baseUrl &&
+      config.appId &&
+      config.appSecret &&
+      config.password &&
+      config.stationId &&
+      (config.email || config.username),
+  );
 }
 
 function wave(seed: number, min: number, max: number) {
@@ -177,20 +266,76 @@ export function mockAlarms(): SolarAlarms {
   };
 }
 
-async function deyeFetch<T>(path: string, init?: RequestInit): Promise<T> {
+function dateString(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function monthString(date: Date) {
+  return date.toISOString().slice(0, 7);
+}
+
+function toUnixSeconds(date: Date) {
+  return Math.floor(date.getTime() / 1000);
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+function normalizeToken(token?: string, tokenType = "bearer") {
+  if (!token) return "";
+  if (/^bearer\s+/i.test(token)) return token;
+  return `${tokenType} ${token}`;
+}
+
+async function getDeyeAccessToken(config: DeyeConfig) {
+  if (config.apiKey) return normalizeToken(config.apiKey);
+  if (!config.appId || !config.appSecret || !config.password) {
+    throw new Error("Deye AppId, AppSecret, and password are required for live API.");
+  }
+
+  const url = new URL("/v1.0/account/token", config.baseUrl);
+  url.searchParams.set("appId", config.appId);
+  const identity = config.email ?? config.username;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      appSecret: config.appSecret,
+      companyId: Number(config.companyId ?? "0"),
+      ...(identity?.includes("@") ? { email: identity } : { username: identity }),
+      password: sha256(config.password),
+    }),
+    next: { revalidate: 0 },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Deye token request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const token = (await response.json()) as TokenResponse;
+  if (!token.success || !token.accessToken) {
+    throw new Error(`Deye token request was rejected: ${token.msg ?? "unknown error"}`);
+  }
+
+  return normalizeToken(token.accessToken, token.tokenType);
+}
+
+async function deyePost<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const config = getConfig();
   if (!hasLiveConfig(config)) {
     throw new Error("Deye API credentials are not configured.");
   }
 
   const url = new URL(path, config.baseUrl);
+  const authorization = await getDeyeAccessToken(config);
   const response = await fetch(url, {
-    ...init,
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${config.apiKey}`,
-      ...(init?.headers ?? {}),
+      Authorization: authorization,
     },
+    body: JSON.stringify(body),
     next: { revalidate: 0 },
   });
 
@@ -201,30 +346,125 @@ async function deyeFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+function ensureSuccess(response: { success?: boolean; msg?: string }, label: string) {
+  if (response.success === false) {
+    throw new Error(`${label} failed: ${response.msg ?? "unknown Deye API error"}`);
+  }
+}
+
+function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStationHistory): SolarOverview {
+  const solarKw = numberOr(station.generationPower, 0);
+  const loadKw = numberOr(station.consumptionPower, 0);
+  const chargeKw = numberOr(station.chargePower, 0);
+  const dischargeKw = numberOr(station.dischargePower, 0);
+  const batteryPowerKw = station.batteryPower !== undefined ? numberOr(station.batteryPower, chargeKw - dischargeKw) : chargeKw - dischargeKw;
+  const gridPowerKw = station.gridPower !== undefined ? numberOr(station.gridPower, 0) : numberOr(station.purchasePower, 0) - numberOr(station.wirePower, 0);
+  const today = month?.stationDataItems?.at(-1);
+  const monthTotals = month?.stationDataItems ?? [];
+  const monthlyProductionKwh = monthTotals.reduce((total, item) => total + numberOr(item.generationValue, 0), 0);
+  const monthlyLoadKwh = monthTotals.reduce((total, item) => total + numberOr(item.consumptionValue, 0), 0);
+
+  return {
+    source: "live",
+    status: "online",
+    lastUpdated: station.lastUpdateTime ? new Date(station.lastUpdateTime).toISOString() : nowIso(),
+    metrics: {
+      solarKw,
+      loadKw,
+      batterySoc: numberOr(station.batterySOC, 0),
+      batteryPowerKw,
+      gridPowerKw,
+      todayProductionKwh: numberOr(today?.generationValue, 0),
+      todayLoadKwh: numberOr(today?.consumptionValue, 0),
+      monthlyProductionKwh,
+      monthlyLoadKwh,
+    },
+    flows: {
+      solarToHomeKw: Math.min(solarKw, loadKw),
+      solarToBatteryKw: Math.max(chargeKw, 0),
+      solarToGridKw: Math.max(numberOr(station.wirePower, 0), 0),
+      batteryToHomeKw: Math.max(dischargeKw, 0),
+      gridToHomeKw: Math.max(numberOr(station.purchasePower, gridPowerKw), 0),
+    },
+  };
+}
+
+function historyToDashboard(daily: DeyeStationHistory, power: DeyeStationHistory): SolarHistory {
+  const dailyProduction =
+    daily.stationDataItems?.map((item, index) => ({
+      day: item.day
+        ? `${String(item.day).padStart(2, "0")}/${String(item.month ?? new Date().getMonth() + 1).padStart(2, "0")}`
+        : `D${index + 1}`,
+      kwh: numberOr(item.generationValue, 0),
+    })) ?? [];
+
+  const powerPoints =
+    power.stationDataItems?.map((item) => ({
+      time: item.timeStamp
+        ? new Date(item.timeStamp).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+        : "",
+      solarKw: numberOr(item.generationPower, 0),
+      loadKw: numberOr(item.consumptionPower, 0),
+      batterySoc: numberOr(item.batterySOC, 0),
+    })) ?? [];
+
+  return {
+    source: "live",
+    lastUpdated: nowIso(),
+    dailyProduction,
+    power: powerPoints,
+  };
+}
+
+function alertLevel(level?: number): Alarm["level"] {
+  if (level === 2) return "error";
+  if (level === 1) return "warning";
+  return "info";
+}
+
+function alertTime(timestamp?: number) {
+  return timestamp ? new Date(timestamp * 1000).toISOString() : nowIso();
+}
+
+function alertsToDashboard(response: DeyeStationAlerts): SolarAlarms {
+  const items = response.stationAlertItems ?? response.alertList ?? [];
+  return {
+    source: "live",
+    lastUpdated: nowIso(),
+    alarms: items.map((item, index) => ({
+      id: item.alertId ?? `${item.alertCode ?? "alert"}-${index}`,
+      level: alertLevel(item.level),
+      code: item.protocolName ?? item.alertCode ?? "DEYE_ALERT",
+      message: item.alertName ?? item.description ?? item.reason ?? "Deye Cloud alert",
+      device: item.deviceSn ?? item.deviceType ?? "Deye device",
+      startedAt: alertTime(item.alertStartTime),
+      resolvedAt: item.status === 0 ? alertTime(item.alertEndTime) : null,
+    })),
+  };
+}
+
 export async function getSolarOverview(): Promise<SolarOverview> {
   const config = getConfig();
   if (!hasLiveConfig(config)) return mockOverview();
 
   try {
-    const data = await deyeFetch<Record<string, unknown>>(`/station/${config.stationId}/overview`);
-    const metrics = data.metrics as Record<string, unknown> | undefined;
-    return {
-      source: "live",
-      status: (data.status as SystemStatus | undefined) ?? "online",
-      lastUpdated: (data.lastUpdated as string | undefined) ?? nowIso(),
-      metrics: {
-        solarKw: numberOr(metrics?.solarKw ?? data.solarKw, 0),
-        loadKw: numberOr(metrics?.loadKw ?? data.loadKw, 0),
-        batterySoc: numberOr(metrics?.batterySoc ?? data.batterySoc, 0),
-        batteryPowerKw: numberOr(metrics?.batteryPowerKw ?? data.batteryPowerKw, 0),
-        gridPowerKw: numberOr(metrics?.gridPowerKw ?? data.gridPowerKw, 0),
-        todayProductionKwh: numberOr(metrics?.todayProductionKwh ?? data.todayProductionKwh, 0),
-        todayLoadKwh: numberOr(metrics?.todayLoadKwh ?? data.todayLoadKwh, 0),
-        monthlyProductionKwh: numberOr(metrics?.monthlyProductionKwh ?? data.monthlyProductionKwh, 0),
-        monthlyLoadKwh: numberOr(metrics?.monthlyLoadKwh ?? data.monthlyLoadKwh, 0),
-      },
-      flows: (data.flows as SolarOverview["flows"] | undefined) ?? mockOverview().flows,
-    };
+    const today = new Date();
+    const nextDay = new Date(today);
+    nextDay.setDate(today.getDate() + 1);
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const [latest, month] = await Promise.all([
+      deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) }),
+      deyePost<DeyeStationHistory>("/v1.0/station/history", {
+        stationId: Number(config.stationId),
+        granularity: 2,
+        startAt: dateString(monthStart),
+        endAt: dateString(monthEnd),
+      }),
+    ]);
+    ensureSuccess(latest, "Deye station latest");
+    ensureSuccess(month, "Deye station history");
+    return stationLatestToOverview(latest, month);
   } catch (error) {
     console.error(error);
     return { ...mockOverview(), status: "offline" };
@@ -236,7 +476,27 @@ export async function getSolarHistory(): Promise<SolarHistory> {
   if (!hasLiveConfig(config)) return mockHistory();
 
   try {
-    return { ...(await deyeFetch<SolarHistory>(`/station/${config.stationId}/history`)), source: "live" };
+    const today = new Date();
+    const nextDay = new Date(today);
+    nextDay.setDate(today.getDate() + 1);
+    const fourteenDaysAgo = new Date(today);
+    fourteenDaysAgo.setDate(today.getDate() - 13);
+    const [daily, power] = await Promise.all([
+      deyePost<DeyeStationHistory>("/v1.0/station/history", {
+        stationId: Number(config.stationId),
+        granularity: 2,
+        startAt: dateString(fourteenDaysAgo),
+        endAt: dateString(nextDay),
+      }),
+      deyePost<DeyeStationHistory>("/v1.0/station/history", {
+        stationId: Number(config.stationId),
+        granularity: 1,
+        startAt: dateString(today),
+      }),
+    ]);
+    ensureSuccess(daily, "Deye daily history");
+    ensureSuccess(power, "Deye power history");
+    return historyToDashboard(daily, power);
   } catch (error) {
     console.error(error);
     return mockHistory();
@@ -248,7 +508,18 @@ export async function getSolarAlarms(): Promise<SolarAlarms> {
   if (!hasLiveConfig(config)) return mockAlarms();
 
   try {
-    return { ...(await deyeFetch<SolarAlarms>(`/station/${config.stationId}/alarms`)), source: "live" };
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(end.getDate() - 30);
+    const alerts = await deyePost<DeyeStationAlerts>("/v1.0/station/alertList", {
+      stationId: Number(config.stationId),
+      startTimestamp: toUnixSeconds(start),
+      endTimestamp: toUnixSeconds(end),
+      page: 1,
+      size: 20,
+    });
+    ensureSuccess(alerts, "Deye station alerts");
+    return alertsToDashboard(alerts);
   } catch (error) {
     console.error(error);
     return mockAlarms();

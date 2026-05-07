@@ -26,11 +26,16 @@ npm run dev
 
 ```bash
 DEYE_API_BASE_URL=https://eu1-developer.deyecloud.com/v1.0
+DEYE_APP_ID=
+DEYE_APP_SECRET=
 DEYE_API_KEY=
 DEYE_USERNAME=
+DEYE_EMAIL=
 DEYE_PASSWORD=
+DEYE_COMPANY_ID=0
 DEYE_STATION_ID=
 DEYE_DEVICE_ID=
+DEYE_LOGGER_SN=
 ```
 
 อย่าใส่ credential ใน frontend หรือ commit ไฟล์ `.env.local`
@@ -47,10 +52,12 @@ Frontend เรียกเฉพาะ route ภายในแอป:
 
 - อ่าน env บนฝั่ง server
 - ตรวจว่ามี config เพียงพอสำหรับ live API หรือไม่
+- ขอ token จาก Deye OpenAPI ด้วย `AppId/AppSecret` และ password ที่ hash ด้วย SHA-256
+- เรียก Deye endpoint จริง เช่น `/v1.0/station/latest`, `/v1.0/station/history`, `/v1.0/station/alertList`
 - normalize response ให้ frontend ใช้ shape เดียว
 - fallback เป็น mock data เมื่อยังไม่มี key หรือ request live API ล้มเหลว
 
-หมายเหตุ: endpoint live ใน service layer ถูกวางเป็น adapter placeholder (`/station/{id}/overview`, `/history`, `/alarms`) เพื่อให้ต่อ mapping จริงหลังได้เอกสาร/สิทธิ์ DeyeCloud API แล้ว โดยไม่ต้องแก้ frontend
+หมายเหตุ: ถ้า live API ล้มเหลว dashboard จะยังแสดง mock data และ status เป็น offline เพื่อไม่ให้หน้าเว็บล่ม
 
 ## Deye Cloud API Access
 
@@ -69,6 +76,16 @@ Frontend เรียกเฉพาะ route ภายในแอป:
 4. ขอ/เปิดสิทธิ์ API สำหรับ account หรือ organization ที่มี station/device ของคุณ
 5. หา `station id` และ `device id` จาก DeyeCloud web/app, developer portal, หรือ endpoint organization/station/device list หลัง login
 6. ใส่ค่าลง `.env.local` แล้ว restart dev server
+
+ค่าจาก Deye Cloud web ที่ต้องใส่:
+
+```bash
+DEYE_STATION_ID=62135946
+DEYE_DEVICE_ID=2409134407
+DEYE_LOGGER_SN=3117271959
+```
+
+ใส่ `DEYE_PASSWORD` เป็น password ปกติของ Deye Cloud account; โค้ดจะ hash เป็น SHA-256 เองก่อนส่งไป Deye API
 
 ถ้ามีปัญหาเรื่องสิทธิ์หรือ endpoint ตาม repo ตัวอย่าง Deye แนะนำติดต่อ `cloudservice@deye.com.cn`
 
