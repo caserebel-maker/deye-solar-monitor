@@ -217,7 +217,7 @@ select {
 
 @media (max-width: 640px) {
   .energy-flow-canvas {
-    min-height: 520px;
+    min-height: 420px;
   }
 }
 

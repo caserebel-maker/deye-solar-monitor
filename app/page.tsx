@@ -213,6 +213,7 @@ function FlowNode({
   value,
   icon: Icon,
   tone,
+  compact = false,
 }: {
   x: number;
   y: number;
@@ -220,15 +221,18 @@ function FlowNode({
   value: string;
   icon: typeof Sun;
   tone: string;
+  compact?: boolean;
 }) {
+  const width = compact ? 118 : 140;
+  const height = compact ? 82 : 96;
   return (
-    <foreignObject x={x - 70} y={y - 48} width="140" height="96">
-      <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-3 text-center shadow-2xl backdrop-blur">
-        <div className="rounded-full border border-indigo-100 bg-white/70 p-2">
-          <Icon className={`h-5 w-5 ${tone}`} />
+    <foreignObject x={x - width / 2} y={y - height / 2} width={width} height={height}>
+      <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-2 text-center shadow-2xl backdrop-blur">
+        <div className={`rounded-full border border-indigo-100 bg-white/70 ${compact ? "p-1.5" : "p-2"}`}>
+          <Icon className={`${compact ? "h-4 w-4" : "h-5 w-5"} ${tone}`} />
         </div>
-        <span className="mt-2 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">{label}</span>
-        <strong className="data-readout text-sm text-slate-950">{value}</strong>
+        <span className={`${compact ? "mt-1 text-[9px] tracking-[0.12em]" : "mt-2 text-[11px] tracking-[0.14em]"} font-medium uppercase text-slate-500`}>{label}</span>
+        <strong className={`data-readout text-slate-950 ${compact ? "text-xs" : "text-sm"}`}>{value}</strong>
       </div>
     </foreignObject>
   );
@@ -280,6 +284,14 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
     inverterToGrid: "M 368 246 H 438 Q 500 246 500 184 V 125",
     inverterToUps: "M 310 314 V 392",
   };
+  const mobilePaths = {
+    solarToInverter: "M 260 105 V 162",
+    batteryToInverter: "M 130 290 H 190 Q 220 290 220 250 V 228",
+    inverterToBattery: "M 220 228 V 250 Q 220 290 190 290 H 130",
+    gridToInverter: "M 390 165 H 285 Q 260 165 260 190",
+    inverterToGrid: "M 285 190 Q 310 165 390 165",
+    inverterToUps: "M 260 228 V 320",
+  };
   return (
     <section className="glass premium-panel rounded-3xl p-5">
       <div className="flex items-center justify-between">
@@ -291,8 +303,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="energy-flow-canvas mt-4 h-[520px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid sm:h-auto sm:aspect-[1.25/1] sm:min-h-80">
-        <svg viewBox="0 0 620 500" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
+      <div className="energy-flow-canvas mt-4 h-[420px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid sm:h-auto sm:aspect-[1.25/1] sm:min-h-80">
+        <svg viewBox="0 0 620 500" className="hidden h-full w-full sm:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -329,6 +341,30 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
             icon={PlugZap}
             tone="text-blue-500"
           />
+        </svg>
+        <svg viewBox="0 0 520 420" className="h-full w-full sm:hidden" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="mobileFlowGradient" x1="0" x2="1">
+              <stop offset="0%" stopColor="#22d3ee" />
+              <stop offset="48%" stopColor="#818cf8" />
+              <stop offset="100%" stopColor="#f472b6" />
+            </linearGradient>
+          </defs>
+          <BaseFlowPath d={mobilePaths.solarToInverter} />
+          <BaseFlowPath d={mobilePaths.batteryToInverter} />
+          <BaseFlowPath d={mobilePaths.gridToInverter} />
+          <BaseFlowPath d={mobilePaths.inverterToUps} />
+          <FlowPath d={mobilePaths.solarToInverter} value={solarToInverter} delay="0s" />
+          <FlowPath d={mobilePaths.batteryToInverter} value={batteryToInverter} delay="-0.45s" />
+          <FlowPath d={mobilePaths.inverterToBattery} value={inverterToBattery} delay="-0.45s" />
+          <FlowPath d={mobilePaths.gridToInverter} value={gridToInverter} delay="-0.9s" />
+          <FlowPath d={mobilePaths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
+          <FlowPath d={mobilePaths.inverterToUps} value={inverterToUps} delay="-1.25s" />
+          <FlowNode x={260} y={84} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" compact />
+          <FlowNode x={260} y={210} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" compact />
+          <FlowNode x={260} y={352} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" compact />
+          <FlowNode x={130} y={290} label="Battery" value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`} icon={BatteryFull} tone="text-cyan-500" compact />
+          <FlowNode x={390} y={165} label="Grid" value={formatPower(metrics.gridPowerKw)} icon={PlugZap} tone="text-blue-500" compact />
         </svg>
       </div>
     </section>
@@ -472,28 +508,35 @@ export default function DashboardPage() {
   if (!data || !metrics) return null;
 
   return (
-    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-28 pt-4 sm:px-5 sm:pb-4 lg:px-6`}>
+    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-20 pt-3 sm:px-5 sm:pb-4 lg:px-6`}>
       <main className="mx-auto max-w-[1860px]" id="dashboard-top">
-        <header className="mb-4 flex flex-col gap-3 rounded-3xl border border-white/60 bg-white/38 px-4 py-3 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-xl font-semibold text-slate-950">725</h1>
-              <button className="rounded-full bg-white/60 p-2 text-slate-600 shadow-sm" onClick={() => loadData(true)}>
+        <header className="mb-3 flex flex-col gap-2 rounded-[1.4rem] border border-white/60 bg-white/38 px-3 py-2.5 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl sm:mb-4 sm:gap-3 sm:rounded-3xl sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold leading-none text-slate-950 sm:text-xl">725</h1>
+              <button className="rounded-full bg-white/60 p-2 text-slate-600 shadow-sm" onClick={() => loadData(true)} type="button">
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+                className="ml-auto inline-flex items-center justify-center rounded-full bg-white/42 p-2 text-slate-600 sm:hidden"
+                onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+                type="button"
+              >
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>
               <span className="hidden rounded-full bg-white/50 px-3 py-1 text-sm text-slate-500 sm:inline-flex">10kWp</span>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+            <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 text-xs text-slate-500 sm:flex sm:flex-wrap sm:gap-3 sm:text-sm">
               <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 ${statusStyle(data.overview.status)}`}>
                 <span className="pulse-dot h-2 w-2 rounded-full bg-emerald-400 text-emerald-400" />
                 {data.overview.status}
               </span>
-              <span>Online Inverter 1</span>
-              <span>{sourceLabel(data.overview.source)}</span>
-              <span>Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
+              <span className="min-w-0 truncate">Online Inverter 1 · {sourceLabel(data.overview.source)}</span>
+              <span className="col-span-2 truncate sm:col-span-1">Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
             </div>
           </div>
-          <nav className="flex gap-2 overflow-x-auto text-sm font-medium text-slate-600 lg:flex">
+          <nav className="hidden gap-2 overflow-x-auto text-sm font-medium text-slate-600 sm:flex lg:flex">
             <button
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
               className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white/42 px-3 py-2 text-slate-600"
@@ -660,17 +703,17 @@ export default function DashboardPage() {
           </div>
         </section>
       </main>
-      <nav className="mobile-tabbar fixed inset-x-3 bottom-4 z-50 grid grid-cols-4 gap-1 rounded-[2rem] border border-white/60 bg-white/80 p-2 shadow-2xl backdrop-blur-2xl sm:hidden">
+      <nav className="mobile-tabbar fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 gap-1 rounded-[1.5rem] border border-white/60 bg-white/80 p-1.5 shadow-2xl backdrop-blur-2xl sm:hidden">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
-              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-3xl px-2 py-2 text-xs font-semibold ${activeTab === tab.id ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "text-slate-500"}`}
+              className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[11px] font-semibold ${activeTab === tab.id ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "text-slate-500"}`}
               key={tab.id}
               onClick={() => selectTab(tab.id)}
               type="button"
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-4 w-4" />
               <span className="w-full truncate">{tab.label}</span>
             </button>
           );
