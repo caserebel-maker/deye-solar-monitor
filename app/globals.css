@@ -263,7 +263,7 @@ select {
 
 @media (max-width: 640px) {
   .energy-flow-canvas {
-    min-height: 390px;
+    min-height: 500px;
   }
 
   .mobile-tabbar {
@@ -273,7 +273,7 @@ select {
 
 @media (max-width: 390px) {
   .energy-flow-canvas {
-    min-height: 372px;
+    min-height: 470px;
   }
 
   .mobile-flow-node {
