@@ -270,12 +270,12 @@ function dateString(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function monthString(date: Date) {
-  return date.toISOString().slice(0, 7);
-}
-
 function toUnixSeconds(date: Date) {
   return Math.floor(date.getTime() / 1000);
+}
+
+function startOfLocalDay(date = new Date()) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function sha256(value: string) {
@@ -452,14 +452,14 @@ export async function getSolarOverview(): Promise<SolarOverview> {
     const nextDay = new Date(today);
     nextDay.setDate(today.getDate() + 1);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const endAt = dateString(nextDay);
     const [latest, month] = await Promise.all([
       deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) }),
       deyePost<DeyeStationHistory>("/v1.0/station/history", {
         stationId: Number(config.stationId),
         granularity: 2,
         startAt: dateString(monthStart),
-        endAt: dateString(monthEnd),
+        endAt,
       }),
     ]);
     ensureSuccess(latest, "Deye station latest");
@@ -479,6 +479,7 @@ export async function getSolarHistory(): Promise<SolarHistory> {
     const today = new Date();
     const nextDay = new Date(today);
     nextDay.setDate(today.getDate() + 1);
+    const startOfToday = startOfLocalDay(today);
     const fourteenDaysAgo = new Date(today);
     fourteenDaysAgo.setDate(today.getDate() - 13);
     const [daily, power] = await Promise.all([
@@ -488,10 +489,10 @@ export async function getSolarHistory(): Promise<SolarHistory> {
         startAt: dateString(fourteenDaysAgo),
         endAt: dateString(nextDay),
       }),
-      deyePost<DeyeStationHistory>("/v1.0/station/history", {
+      deyePost<DeyeStationHistory>("/v1.0/station/history/power", {
         stationId: Number(config.stationId),
-        granularity: 1,
-        startAt: dateString(today),
+        startTimestamp: toUnixSeconds(startOfToday),
+        endTimestamp: toUnixSeconds(today),
       }),
     ]);
     ensureSuccess(daily, "Deye daily history");
