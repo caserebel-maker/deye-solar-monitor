@@ -210,6 +210,17 @@ select {
   border-color: rgba(148, 187, 255, 0.2) !important;
 }
 
+.dark-dashboard .mobile-tabbar {
+  border-color: rgba(148, 187, 255, 0.22);
+  background: rgba(8, 24, 45, 0.9) !important;
+}
+
+@media (max-width: 640px) {
+  .energy-flow-canvas {
+    min-height: 520px;
+  }
+}
+
 @keyframes flow {
   to {
     stroke-dashoffset: -52;

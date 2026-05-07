@@ -21,8 +21,10 @@ import {
   BatteryCharging,
   BatteryFull,
   CalendarDays,
+  ChartSpline,
   CloudOff,
   Cpu,
+  Info,
   Home,
   Moon,
   PlugZap,
@@ -39,9 +41,16 @@ type DashboardData = {
 };
 
 type ThemeMode = "light" | "dark";
+type ActiveTab = "overview" | "devices" | "alerts" | "plant";
 const refreshMs = 45_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
+const tabs: Array<{ id: ActiveTab; label: string; icon: typeof Home }> = [
+  { id: "overview", label: "Overview", icon: ChartSpline },
+  { id: "devices", label: "Devices", icon: Cpu },
+  { id: "alerts", label: "Alerts", icon: AlertTriangle },
+  { id: "plant", label: "Plant Info", icon: Info },
+];
 type DonutItem = { name: string; value: number };
 
 function formatPower(value: number) {
@@ -282,8 +291,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="mt-4 aspect-[1.25/1] min-h-80 w-full rounded-3xl border border-white/60 bg-white/34 soft-grid">
-        <svg viewBox="0 0 620 500" className="h-full w-full">
+      <div className="energy-flow-canvas mt-4 h-[520px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid sm:h-auto sm:aspect-[1.25/1] sm:min-h-80">
+        <svg viewBox="0 0 620 500" className="h-full w-full" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -376,6 +385,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window === "undefined") return "dark";
     const savedTheme = window.localStorage.getItem("deye-theme");
@@ -445,13 +455,25 @@ export default function DashboardPage() {
       { name: "Grid Export", value: flows.solarToGridKw },
     ].filter((item) => item.value > 0);
   }, [flows]);
+  const selectTab = useCallback((tab: ActiveTab) => {
+    setActiveTab(tab);
+    const targetId =
+      tab === "overview"
+        ? "dashboard-top"
+        : tab === "devices"
+          ? "devices-section"
+          : tab === "alerts"
+            ? "alerts-section"
+            : "plant-section";
+    window.setTimeout(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }, []);
 
   if (isLoading) return <SkeletonDashboard />;
   if (!data || !metrics) return null;
 
   return (
-    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 py-4 sm:px-5 lg:px-6`}>
-      <main className="mx-auto max-w-[1860px]">
+    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-28 pt-4 sm:px-5 sm:pb-4 lg:px-6`}>
+      <main className="mx-auto max-w-[1860px]" id="dashboard-top">
         <header className="mb-4 flex flex-col gap-3 rounded-3xl border border-white/60 bg-white/38 px-4 py-3 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-3">
@@ -471,7 +493,7 @@ export default function DashboardPage() {
               <span>Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
             </div>
           </div>
-          <nav className="flex gap-2 overflow-x-auto text-sm font-medium text-slate-600">
+          <nav className="flex gap-2 overflow-x-auto text-sm font-medium text-slate-600 lg:flex">
             <button
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
               className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white/42 px-3 py-2 text-slate-600"
@@ -480,13 +502,15 @@ export default function DashboardPage() {
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            {["Overview", "Devices", "Alerts", "Plant Info"].map((item, index) => (
-              <span
-                className={`rounded-2xl px-4 py-2 ${index === 0 ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "bg-white/42"}`}
-                key={item}
+            {tabs.map((tab) => (
+              <button
+                className={`hidden shrink-0 rounded-2xl px-4 py-2 sm:inline-flex ${activeTab === tab.id ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "bg-white/42"}`}
+                key={tab.id}
+                onClick={() => selectTab(tab.id)}
+                type="button"
               >
-                {item}
-              </span>
+                {tab.label}
+              </button>
             ))}
           </nav>
         </header>
@@ -549,7 +573,7 @@ export default function DashboardPage() {
             </section>
           </div>
 
-          <section className="glass premium-panel rounded-3xl p-5">
+          <section className="glass premium-panel rounded-3xl p-5" id="plant-section">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-950">Solar & Utilization</h2>
               <div className="flex items-center gap-2 rounded-2xl bg-white/52 p-1 text-sm text-slate-500">
@@ -608,14 +632,14 @@ export default function DashboardPage() {
           </ChartPanel>
         </section>
 
-        <section className="mt-4 grid gap-4 lg:grid-cols-4">
+        <section className="mt-4 grid scroll-mt-4 gap-4 lg:grid-cols-4" id="devices-section">
           <MetricCard title="Battery SOC" value={`${metrics.batterySoc}%`} detail={batteryMode} icon={BatteryCharging} accent="bg-cyan-100 text-cyan-600" />
           <MetricCard title="Grid Import / Export" value={formatPower(metrics.gridPowerKw)} detail={metrics.gridPowerKw >= 0 ? "Importing from grid" : "Exporting to grid"} icon={PlugZap} accent="bg-indigo-100 text-indigo-600" />
           <MetricCard title="Battery Power" value={formatPower(metrics.batteryPowerKw)} detail={metrics.batteryPowerKw >= 0 ? "Discharge power" : "Charge power"} icon={Zap} accent="bg-teal-100 text-teal-600" />
           <MetricCard title="Monthly Load" value={metrics.monthlyLoadKwh.toFixed(0)} unit="kWh" detail="Consumption this month" icon={Home} accent="bg-orange-100 text-orange-600" />
         </section>
 
-        <section className="mt-4 glass premium-panel rounded-3xl p-5">
+        <section className="mt-4 scroll-mt-4 glass premium-panel rounded-3xl p-5" id="alerts-section">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">Risk Register</p>
@@ -636,6 +660,22 @@ export default function DashboardPage() {
           </div>
         </section>
       </main>
+      <nav className="mobile-tabbar fixed inset-x-3 bottom-4 z-50 grid grid-cols-4 gap-1 rounded-[2rem] border border-white/60 bg-white/80 p-2 shadow-2xl backdrop-blur-2xl sm:hidden">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-3xl px-2 py-2 text-xs font-semibold ${activeTab === tab.id ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "text-slate-500"}`}
+              key={tab.id}
+              onClick={() => selectTab(tab.id)}
+              type="button"
+            >
+              <Icon className="h-5 w-5" />
+              <span className="w-full truncate">{tab.label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
