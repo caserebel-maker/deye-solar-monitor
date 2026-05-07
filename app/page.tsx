@@ -153,7 +153,7 @@ function FlowNode({
 }
 
 function FlowLine({ from, to, value }: { from: [number, number]; to: [number, number]; value: number }) {
-  if (value <= 0.02) return null;
+  if (value <= 0.005) return null;
   const width = Math.min(8, 2 + value);
   return (
     <line
@@ -165,6 +165,21 @@ function FlowLine({ from, to, value }: { from: [number, number]; to: [number, nu
       strokeWidth={width}
       strokeLinecap="round"
       className="flow-line"
+    />
+  );
+}
+
+function BaseFlowLine({ from, to }: { from: [number, number]; to: [number, number] }) {
+  return (
+    <line
+      x1={from[0]}
+      y1={from[1]}
+      x2={to[0]}
+      y2={to[1]}
+      stroke="rgba(71, 85, 105, 0.42)"
+      strokeWidth={2}
+      strokeDasharray="8 10"
+      strokeLinecap="round"
     />
   );
 }
@@ -191,6 +206,11 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
               <stop offset="100%" stopColor="#f472b6" />
             </linearGradient>
           </defs>
+          <BaseFlowLine from={[310, 122]} to={[310, 244]} />
+          <BaseFlowLine from={[240, 122]} to={[140, 328]} />
+          <BaseFlowLine from={[380, 122]} to={[500, 328]} />
+          <BaseFlowLine from={[178, 345]} to={[262, 278]} />
+          <BaseFlowLine from={[462, 345]} to={[358, 278]} />
           <FlowLine from={[310, 122]} to={[310, 244]} value={flows.solarToHomeKw} />
           <FlowLine from={[240, 122]} to={[140, 328]} value={flows.solarToBatteryKw} />
           <FlowLine from={[380, 122]} to={[500, 328]} value={flows.solarToGridKw} />
@@ -308,23 +328,29 @@ export default function DashboardPage() {
     return "Idle";
   }, [metrics]);
   const utilizationData = useMemo(() => {
-    const load = metrics?.todayLoadKwh ?? 0;
-    const importKwh = Math.max(load - (metrics?.todayProductionKwh ?? 0), 0);
-    const dischargeKwh = Math.max(Math.abs(metrics?.batteryPowerKw ?? 0) * 0.6, 0);
-    const pvKwh = Math.max(load - importKwh - dischargeKwh, 0);
+    const total = metrics?.monthlyLoadKwh ?? 0;
+    const loadKw = Math.max(metrics?.loadKw ?? 0, 0.001);
+    const importShare = Math.max(metrics?.gridPowerKw ?? 0, 0) / loadKw;
+    const dischargeShare = Math.max(-(metrics?.batteryPowerKw ?? 0), 0) / loadKw;
+    const pvShare = Math.max(1 - importShare - dischargeShare, 0);
+    const normalized = importShare + dischargeShare + pvShare || 1;
     return [
-      { name: "Import", value: Number(importKwh.toFixed(2)) },
-      { name: "Discharge", value: Number(dischargeKwh.toFixed(2)) },
-      { name: "PV", value: Number(pvKwh.toFixed(2)) },
+      { name: "Import", value: Number(((total * importShare) / normalized).toFixed(2)) },
+      { name: "Discharge", value: Number(((total * dischargeShare) / normalized).toFixed(2)) },
+      { name: "PV", value: Number(((total * pvShare) / normalized).toFixed(2)) },
     ].filter((item) => item.value > 0);
   }, [metrics]);
   const productionMixData = useMemo(() => {
-    const production = metrics?.todayProductionKwh ?? 0;
-    const charge = Math.max((metrics?.batterySoc ?? 0) / 100 * production * 0.5, 0);
-    const consumption = Math.max(production - charge, 0);
+    const total = metrics?.monthlyProductionKwh ?? 0;
+    const solarKw = Math.max(metrics?.solarKw ?? 0, 0.001);
+    const chargeShare = Math.max(metrics?.batteryPowerKw ?? 0, 0) / solarKw;
+    const consumptionShare = Math.min(Math.max(metrics?.loadKw ?? 0, 0) / solarKw, 1);
+    const exportShare = Math.max(1 - chargeShare - consumptionShare, 0);
+    const normalized = chargeShare + consumptionShare + exportShare || 1;
     return [
-      { name: "Charge", value: Number(charge.toFixed(2)) },
-      { name: "Consumption", value: Number(consumption.toFixed(2)) },
+      { name: "Charge", value: Number(((total * chargeShare) / normalized).toFixed(2)) },
+      { name: "Consumption", value: Number(((total * consumptionShare) / normalized).toFixed(2)) },
+      { name: "Export", value: Number(((total * exportShare) / normalized).toFixed(2)) },
     ].filter((item) => item.value > 0);
   }, [metrics]);
 
@@ -447,7 +473,7 @@ export default function DashboardPage() {
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center">
                   <div>
                     <p className="text-xs text-slate-500">Consumption</p>
-                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.todayLoadKwh.toFixed(1)} kWh</p>
+                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.monthlyLoadKwh.toFixed(1)} kWh</p>
                   </div>
                 </div>
                 <div className="mt-2 grid gap-2 text-sm">
@@ -457,7 +483,7 @@ export default function DashboardPage() {
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: utilizationColors[index] }} />
                         {item.name}
                       </span>
-                      <strong className="text-slate-950">{percent(item.value, metrics.todayLoadKwh)}%</strong>
+                      <strong className="text-slate-950">{percent(item.value, metrics.monthlyLoadKwh)}%</strong>
                     </div>
                   ))}
                 </div>
@@ -475,7 +501,7 @@ export default function DashboardPage() {
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center">
                   <div>
                     <p className="text-xs text-slate-500">Production</p>
-                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.todayProductionKwh.toFixed(1)} kWh</p>
+                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.monthlyProductionKwh.toFixed(1)} kWh</p>
                   </div>
                 </div>
                 <div className="mt-2 grid gap-2 text-sm">
@@ -485,7 +511,7 @@ export default function DashboardPage() {
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: productionColors[index] }} />
                         {item.name}
                       </span>
-                      <strong className="text-slate-950">{percent(item.value, metrics.todayProductionKwh)}%</strong>
+                      <strong className="text-slate-950">{percent(item.value, metrics.monthlyProductionKwh)}%</strong>
                     </div>
                   ))}
                 </div>
