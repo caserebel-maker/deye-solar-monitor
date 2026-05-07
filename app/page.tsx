@@ -274,26 +274,68 @@ function BaseFlowPath({ d }: { d: string }) {
   );
 }
 
+function MobileActiveFlowPath({
+  d,
+  value,
+  delay,
+}: {
+  d: string;
+  value: number;
+  delay: string;
+}) {
+  if (value <= 0.005) return null;
+
+  return (
+    <>
+      <path
+        d={d}
+        stroke="rgba(248, 250, 252, 0.9)"
+        strokeWidth={2.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle r="5.2" fill="#3b82f6" stroke="#8bb8ff" strokeWidth="2.1" className="mobile-flow-dot">
+        <animateMotion dur="1.9s" begin={delay} repeatCount="indefinite" path={d} />
+      </circle>
+    </>
+  );
+}
+
 function MobileFlowNode({
   className,
   label,
   value,
   icon: Icon,
   tone,
+  status,
+  batteryLevel,
+  core = false,
 }: {
   className: string;
   label: string;
   value: string;
   icon: typeof Sun;
   tone: string;
+  status?: string;
+  batteryLevel?: number;
+  core?: boolean;
 }) {
   return (
-    <div className={`absolute z-10 flex h-[72px] w-[122px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-2 text-center shadow-xl backdrop-blur ${className}`}>
-      <div className="rounded-full border border-indigo-100 bg-white/70 p-1.5">
-        <Icon className={`h-4 w-4 ${tone}`} />
+    <div className={`mobile-flow-node absolute z-10 flex w-[96px] -translate-x-1/2 -translate-y-1/2 flex-col items-center text-center ${core ? "mobile-flow-node-core" : ""} ${className}`}>
+      {status && <span className="mobile-node-status data-readout">{status}</span>}
+      <div className={`${core ? "mobile-node-icon-core" : "mobile-node-icon"} relative flex h-[58px] w-[58px] items-center justify-center rounded-[18px] border-[6px] border-slate-500/80 bg-slate-950/80 shadow-xl`}>
+        {batteryLevel !== undefined ? (
+          <div className="flex flex-col items-center gap-0.5">
+            <span className="data-readout text-lg font-black leading-none text-blue-400">{batteryLevel}%</span>
+            <BatteryFull className="h-7 w-7 text-white" />
+          </div>
+        ) : (
+          <Icon className={`h-8 w-8 ${tone}`} strokeWidth={2.4} />
+        )}
       </div>
-      <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.12em] text-slate-500">{label}</span>
-      <strong className="data-readout text-xs text-slate-950">{value}</strong>
+      {value && <strong className="mobile-node-value data-readout mt-2 text-[22px] font-black leading-none text-white">{value}</strong>}
+      {label && <span className="mobile-node-label mt-1 text-sm font-medium leading-none text-slate-400">{label}</span>}
     </div>
   );
 }
@@ -315,15 +357,16 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
     inverterToUps: "M 310 314 V 392",
   };
   const mobilePaths = {
-    solarToInverter: "M 180 96 V 132",
-    batteryToInverter: "M 112 222 H 138 Q 160 222 160 188 H 124",
-    inverterToBattery: "M 124 188 H 160 Q 160 222 138 222 H 112",
-    gridToInverter: "M 248 142 H 266 Q 284 142 284 170 H 236",
-    inverterToGrid: "M 236 170 H 284 Q 284 142 266 142 H 248",
-    inverterToUps: "M 180 204 V 270",
+    solarToInverter: "M 104 104 H 128 Q 146 104 146 132 V 180 H 148",
+    batteryToInverter: "M 78 250 V 214 Q 78 184 114 184 H 144",
+    inverterToBattery: "M 144 196 H 114 Q 78 196 78 228 V 250",
+    gridToInverter: "M 256 104 H 232 Q 214 104 214 132 V 180 H 212",
+    inverterToGrid: "M 212 204 H 232 Q 256 204 256 178 V 104",
+    inverterToUps: "M 180 214 V 264",
+    inverterToLoad: "M 212 198 H 244 Q 270 198 270 230 V 250",
   };
   return (
-    <section className="glass premium-panel rounded-3xl p-5">
+    <section className="glass premium-panel rounded-3xl p-4 sm:p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/70">Live Distribution</p>
@@ -333,7 +376,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="energy-flow-canvas mt-4 h-[420px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid lg:h-auto lg:aspect-[1.25/1] lg:min-h-80">
+      <div className="energy-flow-canvas mt-3 h-[390px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.25/1] lg:min-h-80">
         <svg viewBox="0 0 620 500" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
@@ -374,27 +417,36 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
         </svg>
         <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 360" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
-            <defs>
-              <linearGradient id="mobileFlowGradient" x1="0" x2="1">
-                <stop offset="0%" stopColor="#22d3ee" />
-                <stop offset="48%" stopColor="#818cf8" />
-                <stop offset="100%" stopColor="#f472b6" />
-              </linearGradient>
-            </defs>
             <BaseFlowPath d={mobilePaths.solarToInverter} />
             <BaseFlowPath d={mobilePaths.batteryToInverter} />
             <BaseFlowPath d={mobilePaths.gridToInverter} />
             <BaseFlowPath d={mobilePaths.inverterToUps} />
-            <path d={mobilePaths.solarToInverter} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={solarToInverter > 0.005 ? 1 : 0} />
-            <path d={batteryToInverter > 0.005 ? mobilePaths.batteryToInverter : mobilePaths.inverterToBattery} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={Math.max(batteryToInverter, inverterToBattery) > 0.005 ? 1 : 0} />
-            <path d={gridToInverter > 0.005 ? mobilePaths.gridToInverter : mobilePaths.inverterToGrid} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={Math.max(gridToInverter, inverterToGrid) > 0.005 ? 1 : 0} />
-            <path d={mobilePaths.inverterToUps} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={inverterToUps > 0.005 ? 1 : 0} />
+            <BaseFlowPath d={mobilePaths.inverterToLoad} />
+            <MobileActiveFlowPath d={mobilePaths.solarToInverter} value={solarToInverter} delay="0s" />
+            <MobileActiveFlowPath d={batteryToInverter > 0.005 ? mobilePaths.batteryToInverter : mobilePaths.inverterToBattery} value={Math.max(batteryToInverter, inverterToBattery)} delay="-0.45s" />
+            <MobileActiveFlowPath d={gridToInverter > 0.005 ? mobilePaths.gridToInverter : mobilePaths.inverterToGrid} value={Math.max(gridToInverter, inverterToGrid)} delay="-0.9s" />
+            <MobileActiveFlowPath d={mobilePaths.inverterToUps} value={inverterToUps} delay="-1.25s" />
           </svg>
-          <MobileFlowNode className="left-1/2 top-[18%]" label="Solar" value={formatCompactPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
-          <MobileFlowNode className="left-1/2 top-[46%]" label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-          <MobileFlowNode className="left-1/2 top-[78%]" label="UPS Load" value={formatCompactPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
-          <MobileFlowNode className="left-[24%] top-[61%]" label="Battery" value={`${metrics.batterySoc}% · ${formatCompactPower(metrics.batteryPowerKw)}`} icon={BatteryFull} tone="text-cyan-500" />
-          <MobileFlowNode className="left-[76%] top-[38%]" label="Grid" value={formatCompactPower(metrics.gridPowerKw)} icon={PlugZap} tone="text-blue-500" />
+          <MobileFlowNode className="left-[22%] top-[21%]" label="Production" value={formatCompactPower(metrics.solarKw)} icon={Sun} tone="text-white" />
+          <MobileFlowNode core className="left-1/2 top-[49%]" label="" value="" icon={Cpu} tone="text-white" />
+          <MobileFlowNode className="left-1/2 top-[82%]" label="Ups-Load" value={formatCompactPower(metrics.loadKw)} icon={Home} tone="text-white" />
+          <MobileFlowNode
+            batteryLevel={metrics.batterySoc}
+            className="left-[22%] top-[82%]"
+            label="Battery"
+            value={formatCompactPower(metrics.batteryPowerKw)}
+            icon={BatteryFull}
+            tone="text-white"
+          />
+          <MobileFlowNode
+            className="left-[78%] top-[21%]"
+            label="Grid"
+            status={gridToInverter > 0.005 ? "On grid" : undefined}
+            value={formatCompactPower(metrics.gridPowerKw)}
+            icon={PlugZap}
+            tone="text-white"
+          />
+          <MobileFlowNode className="left-[78%] top-[82%]" label="Load" value="0 W" icon={Home} tone="text-white" />
         </div>
       </div>
     </section>

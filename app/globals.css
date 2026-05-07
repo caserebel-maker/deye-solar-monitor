@@ -161,6 +161,51 @@ select {
   animation: flow 1.75s linear infinite;
 }
 
+.mobile-flow-dot {
+  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.78));
+}
+
+.mobile-flow-node {
+  text-shadow: 0 2px 12px rgba(2, 6, 23, 0.32);
+}
+
+.mobile-node-icon {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 12px 30px rgba(2, 6, 23, 0.28);
+}
+
+.mobile-node-icon-core {
+  width: 70px;
+  height: 70px;
+  border-color: rgba(59, 130, 246, 0.92);
+  border-radius: 22px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 0 0 5px rgba(59, 130, 246, 0.18),
+    0 16px 34px rgba(2, 6, 23, 0.34);
+}
+
+.mobile-flow-node-core {
+  pointer-events: none;
+}
+
+.mobile-node-status {
+  margin-bottom: -1px;
+  color: #6ee787;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mobile-node-value {
+  letter-spacing: 0;
+}
+
+.mobile-node-label {
+  color: rgba(203, 213, 225, 0.78);
+}
+
 .dark-dashboard .text-slate-950,
 .dark-dashboard .text-slate-900,
 .dark-dashboard .text-slate-800 {
@@ -217,7 +262,42 @@ select {
 
 @media (max-width: 640px) {
   .energy-flow-canvas {
-    min-height: 420px;
+    min-height: 390px;
+  }
+
+  .mobile-tabbar {
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 390px) {
+  .energy-flow-canvas {
+    min-height: 372px;
+  }
+
+  .mobile-flow-node {
+    width: 88px;
+  }
+
+  .mobile-node-icon {
+    width: 52px;
+    height: 52px;
+    border-width: 5px;
+    border-radius: 16px;
+  }
+
+  .mobile-node-icon-core {
+    width: 62px;
+    height: 62px;
+    border-radius: 20px;
+  }
+
+  .mobile-node-value {
+    font-size: 1.16rem;
+  }
+
+  .mobile-node-label {
+    font-size: 0.78rem;
   }
 }
 
