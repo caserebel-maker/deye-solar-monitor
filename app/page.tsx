@@ -24,6 +24,7 @@ import {
   CloudOff,
   Cpu,
   Home,
+  Moon,
   PlugZap,
   RefreshCw,
   Sun,
@@ -37,6 +38,7 @@ type DashboardData = {
   alarms: SolarAlarms;
 };
 
+type ThemeMode = "light" | "dark";
 const refreshMs = 45_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
@@ -374,6 +376,11 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return "dark";
+    const savedTheme = window.localStorage.getItem("deye-theme");
+    return savedTheme === "light" || savedTheme === "dark" ? savedTheme : "dark";
+  });
 
   const loadData = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true);
@@ -397,6 +404,10 @@ export default function DashboardPage() {
       setIsRefreshing(false);
     }
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("deye-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     const run = () => {
@@ -439,7 +450,7 @@ export default function DashboardPage() {
   if (!data || !metrics) return null;
 
   return (
-    <div className="dark-dashboard min-h-screen px-3 py-4 sm:px-5 lg:px-6">
+    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 py-4 sm:px-5 lg:px-6`}>
       <main className="mx-auto max-w-[1860px]">
         <header className="mb-4 flex flex-col gap-3 rounded-3xl border border-white/60 bg-white/38 px-4 py-3 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -461,6 +472,14 @@ export default function DashboardPage() {
             </div>
           </div>
           <nav className="flex gap-2 overflow-x-auto text-sm font-medium text-slate-600">
+            <button
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white/42 px-3 py-2 text-slate-600"
+              onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+              type="button"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
             {["Overview", "Devices", "Alerts", "Plant Info"].map((item, index) => (
               <span
                 className={`rounded-2xl px-4 py-2 ${index === 0 ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "bg-white/42"}`}

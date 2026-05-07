@@ -28,6 +28,15 @@ select {
   font: inherit;
 }
 
+.light-dashboard {
+  background:
+    radial-gradient(circle at 14% 12%, rgba(255, 101, 213, 0.32), transparent 28rem),
+    radial-gradient(circle at 68% 8%, rgba(58, 192, 255, 0.52), transparent 31rem),
+    radial-gradient(circle at 92% 58%, rgba(158, 111, 255, 0.28), transparent 26rem),
+    linear-gradient(135deg, #f5e8ff 0%, #c9defe 36%, #d8c7ff 68%, #eff6ff 100%);
+  color: #1d2440;
+}
+
 .glass {
   position: relative;
   border: 1px solid rgba(148, 187, 255, 0.2);
