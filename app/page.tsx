@@ -439,12 +439,12 @@ export default function DashboardPage() {
   if (!data || !metrics) return null;
 
   return (
-    <div className="min-h-screen px-3 py-4 sm:px-5 lg:px-6">
+    <div className="dark-dashboard min-h-screen px-3 py-4 sm:px-5 lg:px-6">
       <main className="mx-auto max-w-[1860px]">
         <header className="mb-4 flex flex-col gap-3 rounded-3xl border border-white/60 bg-white/38 px-4 py-3 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-xl font-semibold text-slate-950">คุณ สายัณห์</h1>
+              <h1 className="text-xl font-semibold text-slate-950">725</h1>
               <button className="rounded-full bg-white/60 p-2 text-slate-600 shadow-sm" onClick={() => loadData(true)}>
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
               </button>

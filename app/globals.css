@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light;
-  background: #d9defd;
+  color-scheme: dark;
+  background: #07111f;
 }
 
 * {
@@ -13,11 +13,11 @@ body {
   min-height: 100vh;
   margin: 0;
   background:
-    radial-gradient(circle at 14% 12%, rgba(255, 101, 213, 0.32), transparent 28rem),
-    radial-gradient(circle at 68% 8%, rgba(58, 192, 255, 0.52), transparent 31rem),
-    radial-gradient(circle at 92% 58%, rgba(158, 111, 255, 0.28), transparent 26rem),
-    linear-gradient(135deg, #f5e8ff 0%, #c9defe 36%, #d8c7ff 68%, #eff6ff 100%);
-  color: #1d2440;
+    radial-gradient(circle at 18% 10%, rgba(14, 165, 233, 0.22), transparent 30rem),
+    radial-gradient(circle at 68% 2%, rgba(59, 130, 246, 0.24), transparent 34rem),
+    radial-gradient(circle at 84% 48%, rgba(99, 102, 241, 0.18), transparent 28rem),
+    linear-gradient(135deg, #07111f 0%, #0b1b31 42%, #102a4a 74%, #061321 100%);
+  color: #e5eefc;
   font-family:
     "Inter", "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -30,13 +30,13 @@ select {
 
 .glass {
   position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(148, 187, 255, 0.2);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(236, 231, 255, 0.38)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.2));
+    linear-gradient(145deg, rgba(15, 35, 62, 0.82), rgba(8, 24, 45, 0.56)),
+    linear-gradient(180deg, rgba(32, 69, 112, 0.34), rgba(6, 18, 34, 0.24));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.84),
-    0 24px 80px rgba(76, 57, 148, 0.18);
+    inset 0 1px 0 rgba(186, 214, 255, 0.18),
+    0 24px 80px rgba(0, 8, 20, 0.42);
   backdrop-filter: blur(24px);
 }
 
@@ -50,9 +50,9 @@ select {
   pointer-events: none;
   content: "";
   background:
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent) 0 0 / 100% 1px no-repeat,
-    radial-gradient(circle at 16% 0%, rgba(96, 165, 250, 0.2), transparent 18rem),
-    radial-gradient(circle at 90% 10%, rgba(244, 114, 182, 0.16), transparent 16rem);
+    linear-gradient(90deg, transparent, rgba(191, 219, 254, 0.22), transparent) 0 0 / 100% 1px no-repeat,
+    radial-gradient(circle at 16% 0%, rgba(56, 189, 248, 0.16), transparent 18rem),
+    radial-gradient(circle at 90% 10%, rgba(99, 102, 241, 0.14), transparent 16rem);
 }
 
 .metric-card {
@@ -66,17 +66,17 @@ select {
 
 .metric-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(129, 140, 248, 0.55);
+  border-color: rgba(56, 189, 248, 0.42);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 32px 90px rgba(76, 57, 148, 0.28);
+    inset 0 1px 0 rgba(219, 234, 254, 0.22),
+    0 32px 90px rgba(14, 165, 233, 0.18);
 }
 
 .soft-grid {
   background-image:
-    radial-gradient(circle at 50% 50%, rgba(129, 140, 248, 0.24), transparent 18rem),
-    linear-gradient(rgba(99, 102, 241, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(99, 102, 241, 0.08) 1px, transparent 1px);
+    radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.1), transparent 18rem),
+    linear-gradient(rgba(125, 211, 252, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.07) 1px, transparent 1px);
   background-size: auto, 42px 42px, 42px 42px;
 }
 
@@ -128,7 +128,7 @@ select {
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.45);
+  background: rgba(15, 35, 62, 0.56);
 }
 
 .skeleton::after {
@@ -137,7 +137,7 @@ select {
   content: "";
   transform: translateX(-100%);
   animation: shimmer 1.35s infinite;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.56), transparent);
+  background: linear-gradient(90deg, transparent, rgba(148, 187, 255, 0.2), transparent);
 }
 
 @keyframes shimmer {
@@ -147,9 +147,58 @@ select {
 }
 
 .flow-line {
-  filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.58));
+  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.58));
   stroke-dasharray: 10 16;
   animation: flow 1.75s linear infinite;
+}
+
+.dark-dashboard .text-slate-950,
+.dark-dashboard .text-slate-900,
+.dark-dashboard .text-slate-800 {
+  color: #f8fbff !important;
+}
+
+.dark-dashboard .text-slate-700,
+.dark-dashboard .text-slate-600,
+.dark-dashboard .text-slate-500 {
+  color: #9fb1cc !important;
+}
+
+.dark-dashboard .text-indigo-500,
+.dark-dashboard .text-indigo-600 {
+  color: #7dd3fc !important;
+}
+
+.dark-dashboard .bg-white\/60,
+.dark-dashboard .bg-white\/58,
+.dark-dashboard .bg-white\/55,
+.dark-dashboard .bg-white\/52,
+.dark-dashboard .bg-white\/50,
+.dark-dashboard .bg-white\/45,
+.dark-dashboard .bg-white\/42,
+.dark-dashboard .bg-white\/38,
+.dark-dashboard .bg-white\/35,
+.dark-dashboard .bg-white\/34,
+.dark-dashboard .bg-white\/22 {
+  background-color: rgba(15, 35, 62, 0.62) !important;
+}
+
+.dark-dashboard .bg-white,
+.dark-dashboard .bg-indigo-100,
+.dark-dashboard .bg-blue-100,
+.dark-dashboard .bg-cyan-100,
+.dark-dashboard .bg-teal-100,
+.dark-dashboard .bg-orange-100,
+.dark-dashboard .bg-fuchsia-50 {
+  background-color: rgba(20, 48, 82, 0.74) !important;
+}
+
+.dark-dashboard .border-white\/60,
+.dark-dashboard .border-white\/45,
+.dark-dashboard .border-indigo-100,
+.dark-dashboard .border-fuchsia-100,
+.dark-dashboard .divide-indigo-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(148, 187, 255, 0.2) !important;
 }
 
 @keyframes flow {
