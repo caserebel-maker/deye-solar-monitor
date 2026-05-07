@@ -378,12 +378,12 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const gridLabel = gridToInverter > 0.005 ? "Grid Import" : inverterToGrid > 0.005 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
-    solarToInverter: "M 175 125 H 270 Q 310 125 310 165 V 214",
-    batteryToInverter: "M 170 357 V 284 Q 170 250 204 250 H 252",
-    inverterToBattery: "M 252 288 H 204 Q 170 288 170 322 V 357",
-    gridToInverter: "M 500 125 H 365 Q 330 125 330 165 V 214",
-    inverterToGrid: "M 368 246 H 438 Q 500 246 500 184 V 125",
-    inverterToUps: "M 310 314 V 392",
+    solarToInverter: "M 168 132 V 210 H 336 V 216",
+    batteryToInverter: "M 168 330 V 294 H 268",
+    inverterToBattery: "M 268 294 H 168 V 330",
+    gridToInverter: "M 504 132 V 210 H 336 V 216",
+    inverterToGrid: "M 336 216 V 210 H 504 V 132",
+    inverterToUps: "M 336 312 V 372",
   };
   const mobilePaths = {
     solarToInverter: "M 104 116 H 130 Q 152 116 152 158 V 224 H 148",
@@ -424,19 +424,19 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <FlowPath d={paths.gridToInverter} value={gridToInverter} delay="-0.9s" />
           <FlowPath d={paths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
           <FlowPath d={paths.inverterToUps} value={inverterToUps} delay="-1.25s" />
-          <FlowNode x={175} y={84} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
-          <FlowNode x={310} y={264} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-          <FlowNode x={310} y={436} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+          <FlowNode x={168} y={84} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+          <FlowNode x={336} y={264} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
+          <FlowNode x={336} y={420} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
-            x={130}
-            y={360}
+            x={168}
+            y={378}
             label="Battery"
             value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
             icon={BatteryFull}
             tone="text-cyan-500"
           />
           <FlowNode
-            x={500}
+            x={504}
             y={84}
             label={gridLabel}
             value={formatPower(gridValue)}
@@ -682,7 +682,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.95fr_1.8fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.7fr_0.95fr_1.08fr]">
           <EnergyFlow overview={data.overview} />
 
           <div className="grid gap-4">
@@ -743,7 +743,7 @@ export default function DashboardPage() {
                 <CalendarDays className="mx-2 h-4 w-4" />
               </div>
             </div>
-            <div className="mt-4 grid min-h-80 gap-5 lg:grid-cols-2">
+            <div className="mt-4 grid min-h-80 gap-5 2xl:grid-cols-2">
               <DonutPanel
                 title="Consumption"
                 value={`${metrics.monthlyLoadKwh.toFixed(1)} kWh`}
