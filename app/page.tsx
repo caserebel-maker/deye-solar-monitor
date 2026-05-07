@@ -59,6 +59,12 @@ function formatPower(value: number) {
   return `${abs.toFixed(2)} kW`;
 }
 
+function formatCompactPower(value: number) {
+  const abs = Math.abs(value);
+  if (abs < 1) return `${Math.round(abs * 1000)} W`;
+  return `${abs.toFixed(2)} kW`;
+}
+
 function statusStyle(status: SolarOverview["status"]) {
   if (status === "error") return "border-rose-200 bg-rose-50/75 text-rose-700";
   if (status === "warning") return "border-amber-200 bg-amber-50/75 text-amber-700";
@@ -268,6 +274,30 @@ function BaseFlowPath({ d }: { d: string }) {
   );
 }
 
+function MobileFlowNode({
+  className,
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  className: string;
+  label: string;
+  value: string;
+  icon: typeof Sun;
+  tone: string;
+}) {
+  return (
+    <div className={`absolute z-10 flex h-[72px] w-[122px] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-2 text-center shadow-xl backdrop-blur ${className}`}>
+      <div className="rounded-full border border-indigo-100 bg-white/70 p-1.5">
+        <Icon className={`h-4 w-4 ${tone}`} />
+      </div>
+      <span className="mt-1 text-[9px] font-medium uppercase tracking-[0.12em] text-slate-500">{label}</span>
+      <strong className="data-readout text-xs text-slate-950">{value}</strong>
+    </div>
+  );
+}
+
 function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const { metrics, flows } = overview;
   const solarToInverter = metrics.solarKw;
@@ -285,12 +315,12 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
     inverterToUps: "M 310 314 V 392",
   };
   const mobilePaths = {
-    solarToInverter: "M 260 105 V 162",
-    batteryToInverter: "M 130 290 H 190 Q 220 290 220 250 V 228",
-    inverterToBattery: "M 220 228 V 250 Q 220 290 190 290 H 130",
-    gridToInverter: "M 390 165 H 285 Q 260 165 260 190",
-    inverterToGrid: "M 285 190 Q 310 165 390 165",
-    inverterToUps: "M 260 228 V 320",
+    solarToInverter: "M 180 96 V 132",
+    batteryToInverter: "M 112 222 H 138 Q 160 222 160 188 H 124",
+    inverterToBattery: "M 124 188 H 160 Q 160 222 138 222 H 112",
+    gridToInverter: "M 248 142 H 266 Q 284 142 284 170 H 236",
+    inverterToGrid: "M 236 170 H 284 Q 284 142 266 142 H 248",
+    inverterToUps: "M 180 204 V 270",
   };
   return (
     <section className="glass premium-panel rounded-3xl p-5">
@@ -342,30 +372,30 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
             tone="text-blue-500"
           />
         </svg>
-        <svg viewBox="0 0 520 420" className="h-full w-full lg:hidden" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            <linearGradient id="mobileFlowGradient" x1="0" x2="1">
-              <stop offset="0%" stopColor="#22d3ee" />
-              <stop offset="48%" stopColor="#818cf8" />
-              <stop offset="100%" stopColor="#f472b6" />
-            </linearGradient>
-          </defs>
-          <BaseFlowPath d={mobilePaths.solarToInverter} />
-          <BaseFlowPath d={mobilePaths.batteryToInverter} />
-          <BaseFlowPath d={mobilePaths.gridToInverter} />
-          <BaseFlowPath d={mobilePaths.inverterToUps} />
-          <FlowPath d={mobilePaths.solarToInverter} value={solarToInverter} delay="0s" />
-          <FlowPath d={mobilePaths.batteryToInverter} value={batteryToInverter} delay="-0.45s" />
-          <FlowPath d={mobilePaths.inverterToBattery} value={inverterToBattery} delay="-0.45s" />
-          <FlowPath d={mobilePaths.gridToInverter} value={gridToInverter} delay="-0.9s" />
-          <FlowPath d={mobilePaths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
-          <FlowPath d={mobilePaths.inverterToUps} value={inverterToUps} delay="-1.25s" />
-          <FlowNode x={260} y={84} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" compact />
-          <FlowNode x={260} y={210} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" compact />
-          <FlowNode x={260} y={352} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" compact />
-          <FlowNode x={130} y={290} label="Battery" value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`} icon={BatteryFull} tone="text-cyan-500" compact />
-          <FlowNode x={390} y={165} label="Grid" value={formatPower(metrics.gridPowerKw)} icon={PlugZap} tone="text-blue-500" compact />
-        </svg>
+        <div className="relative h-full w-full overflow-hidden lg:hidden">
+          <svg viewBox="0 0 360 360" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="mobileFlowGradient" x1="0" x2="1">
+                <stop offset="0%" stopColor="#22d3ee" />
+                <stop offset="48%" stopColor="#818cf8" />
+                <stop offset="100%" stopColor="#f472b6" />
+              </linearGradient>
+            </defs>
+            <BaseFlowPath d={mobilePaths.solarToInverter} />
+            <BaseFlowPath d={mobilePaths.batteryToInverter} />
+            <BaseFlowPath d={mobilePaths.gridToInverter} />
+            <BaseFlowPath d={mobilePaths.inverterToUps} />
+            <path d={mobilePaths.solarToInverter} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={solarToInverter > 0.005 ? 1 : 0} />
+            <path d={batteryToInverter > 0.005 ? mobilePaths.batteryToInverter : mobilePaths.inverterToBattery} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={Math.max(batteryToInverter, inverterToBattery) > 0.005 ? 1 : 0} />
+            <path d={gridToInverter > 0.005 ? mobilePaths.gridToInverter : mobilePaths.inverterToGrid} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={Math.max(gridToInverter, inverterToGrid) > 0.005 ? 1 : 0} />
+            <path d={mobilePaths.inverterToUps} stroke="url(#mobileFlowGradient)" strokeWidth="4" strokeLinecap="round" fill="none" className="flow-line" opacity={inverterToUps > 0.005 ? 1 : 0} />
+          </svg>
+          <MobileFlowNode className="left-1/2 top-[18%]" label="Solar" value={formatCompactPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+          <MobileFlowNode className="left-1/2 top-[46%]" label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
+          <MobileFlowNode className="left-1/2 top-[78%]" label="UPS Load" value={formatCompactPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+          <MobileFlowNode className="left-[24%] top-[61%]" label="Battery" value={`${metrics.batterySoc}% · ${formatCompactPower(metrics.batteryPowerKw)}`} icon={BatteryFull} tone="text-cyan-500" />
+          <MobileFlowNode className="left-[76%] top-[38%]" label="Grid" value={formatCompactPower(metrics.gridPowerKw)} icon={PlugZap} tone="text-blue-500" />
+        </div>
       </div>
     </section>
   );
