@@ -22,6 +22,7 @@ import {
   BatteryFull,
   CalendarDays,
   CloudOff,
+  Cpu,
   Home,
   PlugZap,
   RefreshCw,
@@ -40,8 +41,10 @@ const refreshMs = 45_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
 
-function formatKw(value: number) {
-  return `${Math.abs(value).toFixed(2)} kW`;
+function formatPower(value: number) {
+  const abs = Math.abs(value);
+  if (abs < 1) return `${(abs * 1000).toFixed(2)} W`;
+  return `${abs.toFixed(2)} kW`;
 }
 
 function statusStyle(status: SolarOverview["status"]) {
@@ -146,40 +149,52 @@ function FlowNode({
   );
 }
 
-function FlowLine({ from, to, value }: { from: [number, number]; to: [number, number]; value: number }) {
+function FlowPath({ d, value, delay = "0s" }: { d: string; value: number; delay?: string }) {
   if (value <= 0.005) return null;
-  const width = Math.min(8, 2 + value);
+  const width = Math.min(8, 2 + value * 1.35);
   return (
-    <line
-      x1={from[0]}
-      y1={from[1]}
-      x2={to[0]}
-      y2={to[1]}
-      stroke="url(#flowGradient)"
-      strokeWidth={width}
-      strokeLinecap="round"
-      className="flow-line"
-    />
+    <>
+      <path d={d} stroke="url(#flowGradient)" strokeWidth={width} strokeLinecap="round" fill="none" className="flow-line" />
+      <circle r="6" fill="#3b82f6" className="flow-pulse-dot">
+        <animateMotion dur="1.9s" begin={delay} repeatCount="indefinite" path={d} />
+      </circle>
+      <circle r="3.5" fill="#ffffff" opacity="0.82">
+        <animateMotion dur="1.9s" begin={delay} repeatCount="indefinite" path={d} />
+      </circle>
+    </>
   );
 }
 
-function BaseFlowLine({ from, to }: { from: [number, number]; to: [number, number] }) {
+function BaseFlowPath({ d }: { d: string }) {
   return (
-    <line
-      x1={from[0]}
-      y1={from[1]}
-      x2={to[0]}
-      y2={to[1]}
+    <path
+      d={d}
       stroke="rgba(71, 85, 105, 0.42)"
       strokeWidth={2}
       strokeDasharray="8 10"
       strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
     />
   );
 }
 
 function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const { metrics, flows } = overview;
+  const solarToInverter = metrics.solarKw;
+  const batteryToInverter = Math.max(flows.batteryToHomeKw, -metrics.batteryPowerKw, 0);
+  const inverterToBattery = Math.max(flows.solarToBatteryKw, metrics.batteryPowerKw, 0);
+  const gridToInverter = Math.max(flows.gridToHomeKw, metrics.gridPowerKw, 0);
+  const inverterToGrid = Math.max(flows.solarToGridKw, -metrics.gridPowerKw, 0);
+  const inverterToUps = metrics.loadKw;
+  const paths = {
+    solarToInverter: "M 175 125 H 270 Q 310 125 310 165 V 214",
+    batteryToInverter: "M 170 357 V 284 Q 170 250 204 250 H 252",
+    inverterToBattery: "M 252 288 H 204 Q 170 288 170 322 V 357",
+    gridToInverter: "M 500 125 H 365 Q 330 125 330 165 V 214",
+    inverterToGrid: "M 368 246 H 438 Q 500 246 500 184 V 125",
+    inverterToUps: "M 310 314 V 392",
+  };
   return (
     <section className="glass premium-panel rounded-3xl p-5">
       <div className="flex items-center justify-between">
@@ -200,31 +215,32 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
               <stop offset="100%" stopColor="#f472b6" />
             </linearGradient>
           </defs>
-          <BaseFlowLine from={[310, 122]} to={[310, 244]} />
-          <BaseFlowLine from={[240, 122]} to={[140, 328]} />
-          <BaseFlowLine from={[380, 122]} to={[500, 328]} />
-          <BaseFlowLine from={[178, 345]} to={[262, 278]} />
-          <BaseFlowLine from={[462, 345]} to={[358, 278]} />
-          <FlowLine from={[310, 122]} to={[310, 244]} value={flows.solarToHomeKw} />
-          <FlowLine from={[240, 122]} to={[140, 328]} value={flows.solarToBatteryKw} />
-          <FlowLine from={[380, 122]} to={[500, 328]} value={flows.solarToGridKw} />
-          <FlowLine from={[178, 345]} to={[262, 278]} value={flows.batteryToHomeKw} />
-          <FlowLine from={[462, 345]} to={[358, 278]} value={flows.gridToHomeKw} />
-          <FlowNode x={310} y={84} label="Solar" value={formatKw(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
-          <FlowNode x={310} y={270} label="Home" value={formatKw(metrics.loadKw)} icon={Home} tone="text-indigo-500" />
+          <BaseFlowPath d={paths.solarToInverter} />
+          <BaseFlowPath d={paths.batteryToInverter} />
+          <BaseFlowPath d={paths.gridToInverter} />
+          <BaseFlowPath d={paths.inverterToUps} />
+          <FlowPath d={paths.solarToInverter} value={solarToInverter} delay="0s" />
+          <FlowPath d={paths.batteryToInverter} value={batteryToInverter} delay="-0.45s" />
+          <FlowPath d={paths.inverterToBattery} value={inverterToBattery} delay="-0.45s" />
+          <FlowPath d={paths.gridToInverter} value={gridToInverter} delay="-0.9s" />
+          <FlowPath d={paths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
+          <FlowPath d={paths.inverterToUps} value={inverterToUps} delay="-1.25s" />
+          <FlowNode x={175} y={84} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+          <FlowNode x={310} y={264} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
+          <FlowNode x={310} y={436} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
             x={130}
             y={360}
             label="Battery"
-            value={`${metrics.batterySoc}%`}
+            value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
             icon={BatteryFull}
             tone="text-cyan-500"
           />
           <FlowNode
             x={500}
-            y={360}
+            y={84}
             label="Grid"
-            value={formatKw(metrics.gridPowerKw)}
+            value={formatPower(metrics.gridPowerKw)}
             icon={PlugZap}
             tone="text-blue-500"
           />
@@ -323,8 +339,8 @@ export default function DashboardPage() {
   const metrics = data?.overview.metrics;
   const batteryMode = useMemo(() => {
     if (!metrics) return "";
-    if (metrics.batteryPowerKw > 0.05) return `Charging ${formatKw(metrics.batteryPowerKw)}`;
-    if (metrics.batteryPowerKw < -0.05) return `Discharging ${formatKw(metrics.batteryPowerKw)}`;
+    if (metrics.batteryPowerKw > 0.05) return `Charging ${formatPower(metrics.batteryPowerKw)}`;
+    if (metrics.batteryPowerKw < -0.05) return `Discharging ${formatPower(metrics.batteryPowerKw)}`;
     return "Idle";
   }, [metrics]);
   const utilizationData = useMemo(() => {
@@ -552,8 +568,8 @@ export default function DashboardPage() {
 
         <section className="mt-4 grid gap-4 lg:grid-cols-4">
           <MetricCard title="Battery SOC" value={`${metrics.batterySoc}%`} detail={batteryMode} icon={BatteryCharging} accent="bg-cyan-100 text-cyan-600" />
-          <MetricCard title="Grid Import / Export" value={formatKw(metrics.gridPowerKw)} detail={metrics.gridPowerKw >= 0 ? "Importing from grid" : "Exporting to grid"} icon={PlugZap} accent="bg-indigo-100 text-indigo-600" />
-          <MetricCard title="Battery Power" value={formatKw(metrics.batteryPowerKw)} detail={metrics.batteryPowerKw >= 0 ? "Charge power" : "Discharge power"} icon={Zap} accent="bg-teal-100 text-teal-600" />
+          <MetricCard title="Grid Import / Export" value={formatPower(metrics.gridPowerKw)} detail={metrics.gridPowerKw >= 0 ? "Importing from grid" : "Exporting to grid"} icon={PlugZap} accent="bg-indigo-100 text-indigo-600" />
+          <MetricCard title="Battery Power" value={formatPower(metrics.batteryPowerKw)} detail={metrics.batteryPowerKw >= 0 ? "Charge power" : "Discharge power"} icon={Zap} accent="bg-teal-100 text-teal-600" />
           <MetricCard title="Monthly Load" value={metrics.monthlyLoadKwh.toFixed(0)} unit="kWh" detail="Consumption this month" icon={Home} accent="bg-orange-100 text-orange-600" />
         </section>
 
