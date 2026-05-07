@@ -30,10 +30,11 @@ select {
 
 .light-dashboard {
   background:
-    radial-gradient(circle at 14% 12%, rgba(255, 101, 213, 0.32), transparent 28rem),
-    radial-gradient(circle at 68% 8%, rgba(58, 192, 255, 0.52), transparent 31rem),
-    radial-gradient(circle at 92% 58%, rgba(158, 111, 255, 0.28), transparent 26rem),
-    linear-gradient(135deg, #f5e8ff 0%, #c9defe 36%, #d8c7ff 68%, #eff6ff 100%);
+    radial-gradient(circle at 12% 8%, rgba(255, 126, 220, 0.36), transparent 25rem),
+    radial-gradient(circle at 52% 2%, rgba(80, 205, 255, 0.48), transparent 30rem),
+    radial-gradient(circle at 88% 26%, rgba(148, 116, 255, 0.3), transparent 28rem),
+    radial-gradient(circle at 18% 84%, rgba(255, 213, 120, 0.26), transparent 26rem),
+    linear-gradient(135deg, #f7e8ff 0%, #d8efff 34%, #ddd3ff 66%, #fff4fb 100%);
   color: #1d2440;
 }
 
@@ -317,4 +318,80 @@ select {
     transform: scale(1.45);
     opacity: 0;
   }
+}
+
+.light-dashboard .glass {
+  border-color: rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.38)),
+    radial-gradient(circle at 0% 0%, rgba(255, 151, 226, 0.18), transparent 18rem),
+    radial-gradient(circle at 100% 0%, rgba(96, 201, 255, 0.2), transparent 18rem) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 24px 70px rgba(98, 94, 170, 0.18);
+}
+
+.light-dashboard .premium-panel::before {
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.78), transparent) 0 0 / 100% 1px no-repeat,
+    radial-gradient(circle at 14% 0%, rgba(255, 117, 209, 0.14), transparent 16rem),
+    radial-gradient(circle at 86% 10%, rgba(56, 189, 248, 0.16), transparent 17rem);
+}
+
+.light-dashboard .soft-grid {
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(124, 58, 237, 0.08), transparent 18rem),
+    linear-gradient(rgba(99, 102, 241, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.08) 1px, transparent 1px);
+  background-size: auto, 42px 42px, 42px 42px;
+}
+
+.light-dashboard .energy-flow-canvas {
+  background-color: rgba(255, 255, 255, 0.32);
+  box-shadow: inset 0 1px 18px rgba(255, 255, 255, 0.32);
+}
+
+.light-dashboard .mobile-tabbar {
+  border-color: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.78) !important;
+  box-shadow: 0 18px 48px rgba(103, 94, 166, 0.24);
+}
+
+.light-dashboard .mobile-flow-node {
+  text-shadow: none;
+}
+
+.light-dashboard .mobile-node-icon,
+.light-dashboard .mobile-node-icon-core {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 12px 30px rgba(103, 94, 166, 0.2);
+}
+
+.light-dashboard .mobile-node-icon-core {
+  border-color: rgba(99, 102, 241, 0.74);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(226, 232, 255, 0.74));
+}
+
+.light-dashboard .mobile-node-icon svg,
+.light-dashboard .mobile-node-icon-core svg {
+  color: #4f46e5;
+}
+
+.light-dashboard .mobile-node-value {
+  color: #111827;
+}
+
+.light-dashboard .mobile-node-label {
+  color: rgba(71, 85, 105, 0.86);
+}
+
+.light-dashboard .mobile-active-flow-line {
+  stroke: rgba(79, 70, 229, 0.78);
+}
+
+.light-dashboard .mobile-flow-dot {
+  filter: drop-shadow(0 0 9px rgba(99, 102, 241, 0.54));
 }

@@ -294,6 +294,7 @@ function MobileActiveFlowPath({
         strokeLinecap="round"
         strokeLinejoin="round"
         fill="none"
+        className="mobile-active-flow-line"
       />
       <circle r="5.2" fill="#3b82f6" stroke="#8bb8ff" strokeWidth="2.1" className="mobile-flow-dot">
         <animateMotion dur="1.9s" begin={delay} repeatCount="indefinite" path={d} />
