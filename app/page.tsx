@@ -303,8 +303,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="energy-flow-canvas mt-4 h-[420px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid sm:h-auto sm:aspect-[1.25/1] sm:min-h-80">
-        <svg viewBox="0 0 620 500" className="hidden h-full w-full sm:block" preserveAspectRatio="xMidYMid meet">
+      <div className="energy-flow-canvas mt-4 h-[420px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid lg:h-auto lg:aspect-[1.25/1] lg:min-h-80">
+        <svg viewBox="0 0 620 500" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -342,7 +342,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
             tone="text-blue-500"
           />
         </svg>
-        <svg viewBox="0 0 520 420" className="h-full w-full sm:hidden" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 520 420" className="h-full w-full lg:hidden" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="mobileFlowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -508,7 +508,7 @@ export default function DashboardPage() {
   if (!data || !metrics) return null;
 
   return (
-    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-20 pt-3 sm:px-5 sm:pb-4 lg:px-6`}>
+    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-24 pt-3 sm:px-5 sm:pb-4 lg:px-6`}>
       <main className="mx-auto max-w-[1860px]" id="dashboard-top">
         <header className="mb-3 flex flex-col gap-2 rounded-[1.4rem] border border-white/60 bg-white/38 px-3 py-2.5 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl sm:mb-4 sm:gap-3 sm:rounded-3xl sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
