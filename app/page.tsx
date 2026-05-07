@@ -6,9 +6,12 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  Cell,
   CartesianGrid,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,7 +22,7 @@ import {
   AlertTriangle,
   BatteryCharging,
   BatteryFull,
-  Building2,
+  CalendarDays,
   CloudOff,
   Cpu,
   Gauge,
@@ -40,20 +43,27 @@ type DashboardData = {
 };
 
 const refreshMs = 45_000;
+const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
+const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
 
 function formatKw(value: number) {
   return `${Math.abs(value).toFixed(2)} kW`;
 }
 
 function statusStyle(status: SolarOverview["status"]) {
-  if (status === "error") return "border-rose-400/50 bg-rose-500/12 text-rose-100";
-  if (status === "warning") return "border-amber-300/50 bg-amber-400/12 text-amber-100";
-  if (status === "offline") return "border-slate-300/40 bg-slate-400/10 text-slate-200";
-  return "border-emerald-300/50 bg-emerald-400/12 text-emerald-100";
+  if (status === "error") return "border-rose-200 bg-rose-50/75 text-rose-700";
+  if (status === "warning") return "border-amber-200 bg-amber-50/75 text-amber-700";
+  if (status === "offline") return "border-slate-200 bg-slate-50/75 text-slate-600";
+  return "border-emerald-200 bg-emerald-50/75 text-emerald-700";
 }
 
 function sourceLabel(source: DashboardData["overview"]["source"]) {
   return source === "live" ? "Live Deye Cloud API" : "Mock data";
+}
+
+function percent(part: number, total: number) {
+  if (!total) return 0;
+  return Math.round((part / total) * 100);
 }
 
 function MetricCard({
@@ -297,197 +307,251 @@ export default function DashboardPage() {
     if (metrics.batteryPowerKw < -0.05) return `Discharging ${formatKw(metrics.batteryPowerKw)}`;
     return "Idle";
   }, [metrics]);
+  const utilizationData = useMemo(() => {
+    const load = metrics?.todayLoadKwh ?? 0;
+    const importKwh = Math.max(load - (metrics?.todayProductionKwh ?? 0), 0);
+    const dischargeKwh = Math.max(Math.abs(metrics?.batteryPowerKw ?? 0) * 0.6, 0);
+    const pvKwh = Math.max(load - importKwh - dischargeKwh, 0);
+    return [
+      { name: "Import", value: Number(importKwh.toFixed(2)) },
+      { name: "Discharge", value: Number(dischargeKwh.toFixed(2)) },
+      { name: "PV", value: Number(pvKwh.toFixed(2)) },
+    ].filter((item) => item.value > 0);
+  }, [metrics]);
+  const productionMixData = useMemo(() => {
+    const production = metrics?.todayProductionKwh ?? 0;
+    const charge = Math.max((metrics?.batterySoc ?? 0) / 100 * production * 0.5, 0);
+    const consumption = Math.max(production - charge, 0);
+    return [
+      { name: "Charge", value: Number(charge.toFixed(2)) },
+      { name: "Consumption", value: Number(consumption.toFixed(2)) },
+    ].filter((item) => item.value > 0);
+  }, [metrics]);
 
   if (isLoading) return <SkeletonDashboard />;
+  if (!data || !metrics) return null;
 
   return (
-    <div className="min-h-screen p-3 sm:p-5">
-      <div className="mx-auto flex max-w-[1540px] gap-5">
-        <aside className="app-sidebar sticky top-5 hidden h-[calc(100vh-2.5rem)] w-64 shrink-0 rounded-3xl p-5 text-white lg:block">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/16">
-              <Sun className="h-6 w-6 text-cyan-200" />
-            </div>
-            <div>
-              <p className="text-lg font-semibold">DeyeCloud</p>
-              <p className="text-xs text-white/52">Solar intelligence</p>
-            </div>
-          </div>
-          <nav className="mt-8 grid gap-2 text-sm">
-            {[
-              ["Overview", Activity],
-              ["Production", Sun],
-              ["Battery", BatteryCharging],
-              ["Grid", PlugZap],
-              ["Alerts", AlertTriangle],
-            ].map(([label, Icon], index) => (
-              <div
-                className={`flex items-center gap-3 rounded-2xl px-3 py-3 ${
-                  index === 0 ? "bg-white/18 text-white shadow-lg" : "text-white/62"
-                }`}
-                key={String(label)}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{String(label)}</span>
-              </div>
-            ))}
-          </nav>
-          <div className="absolute bottom-5 left-5 right-5 rounded-3xl border border-white/12 bg-white/10 p-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/45">Station</p>
-            <p className="mt-1 text-sm font-semibold">คุณ สายัณห์</p>
-            <p className="mt-3 text-xs text-white/52">Auto-refresh telemetry every {refreshMs / 1000}s</p>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1">
-      <header className="glass premium-panel rounded-3xl p-5 sm:p-7">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <div className="min-h-screen px-3 py-4 sm:px-5 lg:px-6">
+      <main className="mx-auto max-w-[1860px]">
+        <header className="mb-4 flex flex-col gap-3 rounded-3xl border border-white/60 bg-white/38 px-4 py-3 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/46 px-3 py-1.5 text-xs font-medium uppercase tracking-[0.2em] text-indigo-600/80">
-                <Building2 className="h-3.5 w-3.5" />
-                Executive Operations
-              </span>
-              {data && (
-                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/60 bg-emerald-50/60 px-3 py-1.5 text-xs font-medium text-emerald-700">
-                  <span className="pulse-dot h-2 w-2 rounded-full bg-emerald-300 text-emerald-300" />
-                  {sourceLabel(data.overview.source)}
-                </span>
-              )}
+              <h1 className="text-xl font-semibold text-slate-950">คุณ สายัณห์</h1>
+              <button className="rounded-full bg-white/60 p-2 text-slate-600 shadow-sm" onClick={() => loadData(true)}>
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </button>
+              <span className="hidden rounded-full bg-white/50 px-3 py-1 text-sm text-slate-500 sm:inline-flex">10kWp</span>
             </div>
-            <h1 className="executive-title mt-4 max-w-4xl bg-gradient-to-r from-slate-950 via-indigo-700 to-fuchsia-500 bg-clip-text text-4xl font-semibold tracking-normal text-transparent sm:text-6xl">
-              Deye Energy Command Center
-            </h1>
-            <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-              Boardroom-grade view of generation, demand, storage and grid exposure across the Deye inverter stack.
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-500">
+              <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 ${statusStyle(data.overview.status)}`}>
+                <span className="pulse-dot h-2 w-2 rounded-full bg-emerald-400 text-emerald-400" />
+                {data.overview.status}
+              </span>
+              <span>Online Inverter 1</span>
+              <span>{sourceLabel(data.overview.source)}</span>
+              <span>Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
+            </div>
           </div>
-          <div className="grid gap-3 sm:min-w-80">
-            {data && (
-              <div className={`rounded-3xl border p-4 ${statusStyle(data.overview.status)}`}>
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-xs font-medium uppercase tracking-[0.2em] opacity-70">System Status</span>
-                  <ShieldCheck className="h-5 w-5" />
+          <nav className="flex gap-2 overflow-x-auto text-sm font-medium text-slate-600">
+            {["Overview", "Devices", "Alerts", "Plant Info"].map((item, index) => (
+              <span
+                className={`rounded-2xl px-4 py-2 ${index === 0 ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "bg-white/42"}`}
+                key={item}
+              >
+                {item}
+              </span>
+            ))}
+          </nav>
+        </header>
+
+        {error && (
+          <section className="mb-4 rounded-3xl border border-rose-200 bg-rose-50/80 p-4 text-rose-700 backdrop-blur">
+            <div className="flex items-center gap-2">
+              <CloudOff className="h-5 w-5" />
+              <strong>Data connection issue</strong>
+            </div>
+            <p className="mt-2 text-sm">{error}</p>
+          </section>
+        )}
+
+        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.95fr_1.8fr]">
+          <EnergyFlow overview={data.overview} />
+
+          <div className="grid gap-4">
+            <section className="glass premium-panel rounded-3xl p-5">
+              <h2 className="text-lg font-semibold text-slate-950">Summary</h2>
+              <div className="mt-8 grid gap-8">
+                <div className="flex items-center gap-5">
+                  <div className="rounded-3xl bg-indigo-100 p-4 text-indigo-600">
+                    <Zap className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-500">Accumulative production</p>
+                    <p className="data-readout mt-2 text-3xl font-semibold text-slate-950">
+                      {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-sm">kWh</span>
+                    </p>
+                  </div>
                 </div>
-                <p className="mt-2 text-2xl font-semibold">{data.overview.status.toUpperCase()}</p>
+                <div className="flex items-center gap-5">
+                  <div className="rounded-3xl bg-blue-100 p-4 text-blue-600">
+                    <Home className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-500">Accumulative consumption</p>
+                    <p className="data-readout mt-2 text-3xl font-semibold text-slate-950">
+                      {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-sm">kWh</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="glass premium-panel rounded-3xl p-5">
+              <div className="grid grid-cols-2 divide-x divide-indigo-100">
+                <div className="px-2">
+                  <p className="text-sm text-slate-500">Daily Production</p>
+                  <p className="data-readout mt-3 text-3xl font-semibold text-slate-950">
+                    {metrics.todayProductionKwh.toFixed(1)} <span className="text-sm">kWh</span>
+                  </p>
+                </div>
+                <div className="px-5">
+                  <p className="text-sm text-slate-500">Weather</p>
+                  <p className="data-readout mt-3 text-3xl font-semibold text-slate-950">33 <span className="text-sm">°C</span></p>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section className="glass premium-panel rounded-3xl p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-slate-950">Solar & Utilization</h2>
+              <div className="flex items-center gap-2 rounded-2xl bg-white/52 p-1 text-sm text-slate-500">
+                <span className="rounded-xl bg-white px-4 py-2 shadow-sm">M</span>
+                <span className="px-4 py-2">Y</span>
+                <span className="px-4 py-2">T</span>
+                <CalendarDays className="mx-2 h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-4 grid min-h-80 gap-3 lg:grid-cols-2">
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={utilizationData} dataKey="value" innerRadius={58} outerRadius={82} paddingAngle={2}>
+                      {utilizationData.map((entry, index) => (
+                        <Cell fill={utilizationColors[index % utilizationColors.length]} key={entry.name} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center">
+                  <div>
+                    <p className="text-xs text-slate-500">Consumption</p>
+                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.todayLoadKwh.toFixed(1)} kWh</p>
+                  </div>
+                </div>
+                <div className="mt-2 grid gap-2 text-sm">
+                  {utilizationData.map((item, index) => (
+                    <div className="flex items-center justify-between rounded-2xl bg-white/45 px-3 py-2" key={item.name}>
+                      <span className="flex items-center gap-2 text-slate-500">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: utilizationColors[index] }} />
+                        {item.name}
+                      </span>
+                      <strong className="text-slate-950">{percent(item.value, metrics.todayLoadKwh)}%</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={productionMixData} dataKey="value" innerRadius={58} outerRadius={82} paddingAngle={2}>
+                      {productionMixData.map((entry, index) => (
+                        <Cell fill={productionColors[index % productionColors.length]} key={entry.name} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center">
+                  <div>
+                    <p className="text-xs text-slate-500">Production</p>
+                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.todayProductionKwh.toFixed(1)} kWh</p>
+                  </div>
+                </div>
+                <div className="mt-2 grid gap-2 text-sm">
+                  {productionMixData.map((item, index) => (
+                    <div className="flex items-center justify-between rounded-2xl bg-white/45 px-3 py-2" key={item.name}>
+                      <span className="flex items-center gap-2 text-slate-500">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: productionColors[index] }} />
+                        {item.name}
+                      </span>
+                      <strong className="text-slate-950">{percent(item.value, metrics.todayProductionKwh)}%</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+
+        <section className="mt-4 grid gap-4 2xl:grid-cols-[1.05fr_1fr]">
+          <ChartPanel title="Power Profile" eyebrow="Realtime curve">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data.history.power}>
+                <CartesianGrid stroke="rgba(99,102,241,0.12)" vertical={false} />
+                <XAxis dataKey="time" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} minTickGap={26} />
+                <YAxis yAxisId="kw" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
+                <YAxis yAxisId="soc" orientation="right" domain={[0, 100]} stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ background: "rgba(255,255,255,.92)", border: "1px solid rgba(129,140,248,.22)", borderRadius: 16, color: "#1e293b" }} />
+                <Line yAxisId="kw" type="monotone" dataKey="solarKw" stroke="#22d3ee" strokeWidth={2.4} dot={false} name="Production" />
+                <Line yAxisId="kw" type="monotone" dataKey="loadKw" stroke="#f6b516" strokeWidth={2.4} dot={false} name="Consumption" />
+                <Line yAxisId="soc" type="monotone" dataKey="batterySoc" stroke="#2563eb" strokeWidth={2.4} dot={false} name="SOC %" />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+
+          <ChartPanel title="Generation & Usage History" eyebrow="Monthly balance">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.history.dailyProduction}>
+                <CartesianGrid stroke="rgba(99,102,241,0.12)" vertical={false} />
+                <XAxis dataKey="day" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
+                <YAxis stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={{ background: "rgba(255,255,255,.92)", border: "1px solid rgba(129,140,248,.22)", borderRadius: 16, color: "#1e293b" }} />
+                <Bar dataKey="kwh" name="Daily Production" fill="#22c55e" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="consumptionKwh" name="Daily Consumption" fill="#f6b516" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartPanel>
+        </section>
+
+        <section className="mt-4 grid gap-4 lg:grid-cols-4">
+          <MetricCard title="Battery SOC" value={`${metrics.batterySoc}%`} detail={batteryMode} icon={BatteryCharging} accent="bg-cyan-100 text-cyan-600" />
+          <MetricCard title="Grid Import / Export" value={formatKw(metrics.gridPowerKw)} detail={metrics.gridPowerKw >= 0 ? "Importing from grid" : "Exporting to grid"} icon={PlugZap} accent="bg-indigo-100 text-indigo-600" />
+          <MetricCard title="Battery Power" value={formatKw(metrics.batteryPowerKw)} detail={metrics.batteryPowerKw >= 0 ? "Charge power" : "Discharge power"} icon={Zap} accent="bg-teal-100 text-teal-600" />
+          <MetricCard title="Monthly Load" value={metrics.monthlyLoadKwh.toFixed(0)} unit="kWh" detail="Consumption this month" icon={Home} accent="bg-orange-100 text-orange-600" />
+        </section>
+
+        <section className="mt-4 glass premium-panel rounded-3xl p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">Risk Register</p>
+              <h2 className="mt-1 text-xl font-semibold text-slate-950">Alarm & Error Log</h2>
+            </div>
+            <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50 p-2">
+              <AlertTriangle className="h-5 w-5 text-fuchsia-500" />
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {data.alarms.alarms.length > 0 ? (
+              data.alarms.alarms.map((alarm) => <AlarmCard alarm={alarm} key={alarm.id} />)
+            ) : (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-700">
+                No active alarms.
               </div>
             )}
-            <button
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-indigo-200/70 bg-gradient-to-r from-indigo-500 to-fuchsia-400 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:scale-[1.01] disabled:opacity-60"
-              onClick={() => loadData(true)}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              Refresh
-            </button>
           </div>
-        </div>
-        <div className="mt-7 grid gap-3 border-t border-white/60 pt-5 text-sm text-slate-500 sm:grid-cols-3">
-          <div className="flex items-center gap-3">
-            <Cpu className="h-4 w-4 text-indigo-500" />
-            <span>Secure server-side telemetry</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <TrendingUp className="h-4 w-4 text-fuchsia-500" />
-            <span>Production, load and storage intelligence</span>
-          </div>
-          <div className="flex items-center gap-3 sm:justify-end">
-            {data && <span>Updated {new Date(data.overview.lastUpdated).toLocaleTimeString()}</span>}
-            <span>Refresh {refreshMs / 1000}s</span>
-          </div>
-        </div>
-      </header>
-
-      {error && (
-        <section className="mt-5 rounded-lg border border-rose-300/35 bg-rose-500/12 p-4 text-rose-100">
-          <div className="flex items-center gap-2">
-            <CloudOff className="h-5 w-5" />
-            <strong>Data connection issue</strong>
-          </div>
-          <p className="mt-2 text-sm text-rose-100/75">{error}</p>
         </section>
-      )}
-
-      {data && metrics && (
-        <>
-          <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard title="Solar Production" value={metrics.solarKw.toFixed(2)} unit="kW" detail="Current PV output" icon={Sun} accent="candy-a" featured />
-            <MetricCard title="Home Load" value={metrics.loadKw.toFixed(2)} unit="kW" detail="Instant demand profile" icon={Home} accent="candy-b" featured />
-            <MetricCard title="Battery SOC" value={`${metrics.batterySoc}%`} detail={batteryMode} icon={BatteryCharging} accent="bg-cyan-100 text-cyan-600" />
-            <MetricCard title="Grid Import / Export" value={formatKw(metrics.gridPowerKw)} detail={metrics.gridPowerKw >= 0 ? "Importing from grid" : "Exporting to grid"} icon={PlugZap} accent="bg-indigo-100 text-indigo-600" />
-            <MetricCard title="Battery Power" value={formatKw(metrics.batteryPowerKw)} detail={metrics.batteryPowerKw >= 0 ? "Charge power" : "Discharge power"} icon={Zap} accent="bg-teal-100 text-teal-600" />
-            <MetricCard title="Today Production" value={metrics.todayProductionKwh.toFixed(1)} unit="kWh" detail="Energy generated today" icon={Gauge} accent="bg-lime-100 text-lime-600" />
-            <MetricCard title="Monthly Production" value={metrics.monthlyProductionKwh.toFixed(0)} unit="kWh" detail="Current month total" icon={Activity} accent="bg-fuchsia-100 text-fuchsia-600" />
-            <MetricCard title="Monthly Load" value={metrics.monthlyLoadKwh.toFixed(0)} unit="kWh" detail="Consumption this month" icon={Home} accent="bg-orange-100 text-orange-600" />
-          </section>
-
-          <section className="mt-6 grid gap-4 lg:grid-cols-[1.05fr_1.45fr]">
-            <EnergyFlow overview={data.overview} />
-            <div className="grid gap-4">
-              <ChartPanel title="Daily Production" eyebrow="Generation Yield">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.history.dailyProduction}>
-                    <CartesianGrid stroke="rgba(99,102,241,0.12)" vertical={false} />
-                    <XAxis dataKey="day" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
-                    <YAxis stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ background: "rgba(255,255,255,.9)", border: "1px solid rgba(129,140,248,.2)", borderRadius: 16, color: "#1e293b" }} />
-                    <Bar dataKey="kwh" fill="#818cf8" radius={[10, 10, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartPanel>
-            </div>
-          </section>
-
-          <section className="mt-4 grid gap-4 lg:grid-cols-2">
-            <ChartPanel title="Load vs Solar" eyebrow="Intraday Balance">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.history.power}>
-                  <CartesianGrid stroke="rgba(99,102,241,0.12)" vertical={false} />
-                  <XAxis dataKey="time" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
-                  <YAxis stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: "rgba(255,255,255,.9)", border: "1px solid rgba(129,140,248,.2)", borderRadius: 16, color: "#1e293b" }} />
-                  <Area type="monotone" dataKey="solarKw" stroke="#22d3ee" fill="#22d3ee30" strokeWidth={2.5} name="Solar kW" />
-                  <Area type="monotone" dataKey="loadKw" stroke="#8b5cf6" fill="#8b5cf628" strokeWidth={2.5} name="Load kW" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartPanel>
-            <ChartPanel title="Battery SOC History" eyebrow="Storage Position">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.history.power}>
-                  <CartesianGrid stroke="rgba(99,102,241,0.12)" vertical={false} />
-                  <XAxis dataKey="time" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
-                  <YAxis domain={[0, 100]} stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: "rgba(255,255,255,.9)", border: "1px solid rgba(129,140,248,.2)", borderRadius: 16, color: "#1e293b" }} />
-                  <Line type="monotone" dataKey="batterySoc" stroke="#f472b6" strokeWidth={3} dot={false} name="SOC %" />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartPanel>
-          </section>
-
-          <section className="mt-4 glass premium-panel rounded-3xl p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">Risk Register</p>
-                <h2 className="mt-1 text-xl font-semibold text-slate-950">Alarm & Error Log</h2>
-              </div>
-              <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50 p-2">
-                <AlertTriangle className="h-5 w-5 text-fuchsia-500" />
-              </div>
-            </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {data.alarms.alarms.length > 0 ? (
-                data.alarms.alarms.map((alarm) => <AlarmCard alarm={alarm} key={alarm.id} />)
-              ) : (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-700">
-                  No active alarms.
-                </div>
-              )}
-            </div>
-          </section>
-        </>
-      )}
-        </main>
-      </div>
+      </main>
     </div>
   );
 }

@@ -37,7 +37,7 @@ export type HistoryPoint = {
 export type SolarHistory = {
   source: DataSource;
   lastUpdated: string;
-  dailyProduction: Array<{ day: string; kwh: number }>;
+  dailyProduction: Array<{ day: string; kwh: number; consumptionKwh?: number }>;
   power: HistoryPoint[];
 };
 
@@ -257,6 +257,7 @@ export function mockHistory(): SolarHistory {
         month: "short",
       }),
       kwh: Number((18 + Math.sin(index / 1.8) * 8 + Math.random() * 5).toFixed(1)),
+      consumptionKwh: Number((14 + Math.cos(index / 2.2) * 6 + Math.random() * 4).toFixed(1)),
     })),
     power: hours,
   };
@@ -421,6 +422,7 @@ function historyToDashboard(daily: DeyeStationHistory, power: DeyeStationHistory
         ? `${String(item.day).padStart(2, "0")}/${String(item.month ?? new Date().getMonth() + 1).padStart(2, "0")}`
         : `D${index + 1}`,
       kwh: numberOr(item.generationValue, 0),
+      consumptionKwh: numberOr(item.consumptionValue, 0),
     })) ?? [];
 
   const powerPoints =
