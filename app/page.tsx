@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   Cell,
@@ -24,14 +22,10 @@ import {
   BatteryFull,
   CalendarDays,
   CloudOff,
-  Cpu,
-  Gauge,
   Home,
   PlugZap,
   RefreshCw,
-  ShieldCheck,
   Sun,
-  TrendingUp,
   Zap,
 } from "lucide-react";
 import type { Alarm, SolarAlarms, SolarHistory, SolarOverview } from "@/lib/deye-api";
@@ -315,9 +309,15 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
-    const timer = window.setInterval(() => loadData(), refreshMs);
-    return () => window.clearInterval(timer);
+    const run = () => {
+      void loadData();
+    };
+    const initial = window.setTimeout(run, 0);
+    const timer = window.setInterval(run, refreshMs);
+    return () => {
+      window.clearTimeout(initial);
+      window.clearInterval(timer);
+    };
   }, [loadData]);
 
   const metrics = data?.overview.metrics;
