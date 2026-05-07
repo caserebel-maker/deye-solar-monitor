@@ -69,6 +69,74 @@ function donutPercent(item: DonutItem, items: DonutItem[]) {
   return percent(item.value, total);
 }
 
+function DonutPanel({
+  title,
+  value,
+  data,
+  colors,
+  emptyLabel,
+}: {
+  title: string;
+  value: string;
+  data: DonutItem[];
+  colors: string[];
+  emptyLabel: string;
+}) {
+  const hasData = data.length > 0;
+  const chartData = hasData ? data : [{ name: emptyLabel, value: 1 }];
+  const chartColors = hasData ? colors : ["#dbeafe"];
+
+  return (
+    <div className="min-w-0">
+      <div className="relative h-[260px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={chartData}
+              dataKey="value"
+              innerRadius={58}
+              outerRadius={82}
+              paddingAngle={hasData ? 2 : 0}
+              isAnimationActive={false}
+            >
+              {chartData.map((entry, index) => (
+                <Cell fill={chartColors[index % chartColors.length]} key={entry.name} opacity={hasData ? 1 : 0.72} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center">
+          <div className="max-w-28">
+            <p className="truncate text-xs text-slate-500">{title}</p>
+            <p className="data-readout text-sm font-semibold text-slate-950">{value}</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 grid min-h-[88px] content-start gap-2 text-sm">
+        {hasData ? (
+          data.map((item, index) => (
+            <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl bg-white/45 px-3 py-2" key={item.name}>
+              <span className="flex min-w-0 items-center gap-2 text-slate-500">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colors[index % colors.length] }} />
+                <span className="truncate">{item.name}</span>
+              </span>
+              <strong className="shrink-0 text-slate-950">{donutPercent(item, data)}%</strong>
+            </div>
+          ))
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-white/35 px-3 py-2 text-slate-500">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-300" />
+              <span className="truncate">{emptyLabel}</span>
+            </span>
+            <strong className="shrink-0 text-slate-700">0%</strong>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MetricCard({
   title,
   value,
@@ -472,63 +540,21 @@ export default function DashboardPage() {
                 <CalendarDays className="mx-2 h-4 w-4" />
               </div>
             </div>
-            <div className="mt-4 grid min-h-80 gap-3 lg:grid-cols-2">
-              <div className="relative">
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie data={utilizationData} dataKey="value" innerRadius={58} outerRadius={82} paddingAngle={2}>
-                      {utilizationData.map((entry, index) => (
-                        <Cell fill={utilizationColors[index % utilizationColors.length]} key={entry.name} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center">
-                  <div>
-                    <p className="text-xs text-slate-500">Consumption</p>
-                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.monthlyLoadKwh.toFixed(1)} kWh</p>
-                  </div>
-                </div>
-                <div className="mt-2 grid gap-2 text-sm">
-                  {utilizationData.map((item, index) => (
-                    <div className="flex items-center justify-between rounded-2xl bg-white/45 px-3 py-2" key={item.name}>
-                      <span className="flex items-center gap-2 text-slate-500">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: utilizationColors[index] }} />
-                        {item.name}
-                      </span>
-                      <strong className="text-slate-950">{donutPercent(item, utilizationData)}%</strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="relative">
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie data={productionMixData} dataKey="value" innerRadius={58} outerRadius={82} paddingAngle={2}>
-                      {productionMixData.map((entry, index) => (
-                        <Cell fill={productionColors[index % productionColors.length]} key={entry.name} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center">
-                  <div>
-                    <p className="text-xs text-slate-500">Production</p>
-                    <p className="data-readout text-sm font-semibold text-slate-950">{metrics.monthlyProductionKwh.toFixed(1)} kWh</p>
-                  </div>
-                </div>
-                <div className="mt-2 grid gap-2 text-sm">
-                  {productionMixData.map((item, index) => (
-                    <div className="flex items-center justify-between rounded-2xl bg-white/45 px-3 py-2" key={item.name}>
-                      <span className="flex items-center gap-2 text-slate-500">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: productionColors[index] }} />
-                        {item.name}
-                      </span>
-                      <strong className="text-slate-950">{donutPercent(item, productionMixData)}%</strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="mt-4 grid min-h-80 gap-5 lg:grid-cols-2">
+              <DonutPanel
+                title="Consumption"
+                value={`${metrics.monthlyLoadKwh.toFixed(1)} kWh`}
+                data={utilizationData}
+                colors={utilizationColors}
+                emptyLabel="No live consumption"
+              />
+              <DonutPanel
+                title="Production"
+                value={`${metrics.monthlyProductionKwh.toFixed(1)} kWh`}
+                data={productionMixData}
+                colors={productionColors}
+                emptyLabel="No live solar flow"
+              />
             </div>
           </section>
         </section>
