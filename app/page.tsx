@@ -22,6 +22,7 @@ import {
   BatteryFull,
   CalendarDays,
   ChartSpline,
+  CloudSun,
   CloudOff,
   Cpu,
   Info,
@@ -63,6 +64,10 @@ function formatCompactPower(value: number) {
   const abs = Math.abs(value);
   if (abs < 1) return `${Math.round(abs * 1000)} W`;
   return `${abs.toFixed(2)} kW`;
+}
+
+function formatEnergyToday(value: number) {
+  return value.toFixed(2);
 }
 
 function statusStyle(status: SolarOverview["status"]) {
@@ -209,6 +214,27 @@ function SkeletonDashboard() {
         <div className="skeleton h-96 rounded-lg" />
       </div>
     </main>
+  );
+}
+
+function HeroStats({ metrics }: { metrics: SolarOverview["metrics"] }) {
+  return (
+    <div className="hero-stats grid grid-cols-2 gap-3 rounded-[1.35rem] border border-white/50 bg-white/22 p-3 backdrop-blur-xl sm:hidden">
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-tight text-slate-950">Production Today</p>
+        <p className="data-readout mt-2 flex items-end gap-0.5 text-[2rem] font-black leading-none text-slate-950">
+          {formatEnergyToday(metrics.todayProductionKwh)}
+          <span className="mb-1 text-sm font-bold">kWh</span>
+        </p>
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-tight text-slate-950">Weather</p>
+        <p className="data-readout mt-2 flex items-center gap-1 text-[2rem] font-black leading-none text-slate-950">
+          <CloudSun className="h-8 w-8 shrink-0 text-slate-950" strokeWidth={2.2} />
+          33<span className="text-lg font-bold">°C</span>
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -618,6 +644,9 @@ export default function DashboardPage() {
               <span className="min-w-0 truncate">Online Inverter 1 · {sourceLabel(data.overview.source)}</span>
               <span className="col-span-2 truncate sm:col-span-1">Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
             </div>
+            <div className="mt-3 sm:hidden">
+              <HeroStats metrics={metrics} />
+            </div>
           </div>
           <nav className="hidden gap-2 overflow-x-auto text-sm font-medium text-slate-600 sm:flex lg:flex">
             <button
@@ -683,17 +712,20 @@ export default function DashboardPage() {
               </div>
             </section>
 
-            <section className="glass premium-panel rounded-3xl p-5">
+            <section className="glass premium-panel hidden rounded-3xl p-5 sm:block">
               <div className="grid grid-cols-2 divide-x divide-indigo-100">
                 <div className="px-2">
                   <p className="text-sm text-slate-500">Daily Production</p>
                   <p className="data-readout mt-3 text-3xl font-semibold text-slate-950">
-                    {metrics.todayProductionKwh.toFixed(1)} <span className="text-sm">kWh</span>
+                    {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-sm">kWh</span>
                   </p>
                 </div>
                 <div className="px-5">
                   <p className="text-sm text-slate-500">Weather</p>
-                  <p className="data-readout mt-3 text-3xl font-semibold text-slate-950">33 <span className="text-sm">°C</span></p>
+                  <p className="data-readout mt-3 flex items-center gap-2 text-3xl font-semibold text-slate-950">
+                    <CloudSun className="h-7 w-7" />
+                    33 <span className="text-sm">°C</span>
+                  </p>
                 </div>
               </div>
             </section>
