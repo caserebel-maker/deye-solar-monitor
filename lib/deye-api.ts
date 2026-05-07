@@ -148,6 +148,29 @@ const numberOr = (value: unknown, fallback: number) => {
 
 const nowIso = () => new Date().toISOString();
 
+function powerKw(value: unknown, fallback = 0) {
+  const parsed = numberOr(value, fallback);
+  return Math.abs(parsed) > 100 ? Number((parsed / 1000).toFixed(3)) : parsed;
+}
+
+function parseDeyeDate(value: unknown) {
+  if (typeof value === "number") {
+    return new Date(value < 10_000_000_000 ? value * 1000 : value).toISOString();
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric).toISOString();
+    }
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+
+  return nowIso();
+}
+
 function getConfig(): DeyeConfig {
   return {
     baseUrl: process.env.DEYE_API_BASE_URL ?? "https://eu1-developer.deyecloud.com/v1.0",
@@ -353,12 +376,14 @@ function ensureSuccess(response: { success?: boolean; msg?: string }, label: str
 }
 
 function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStationHistory): SolarOverview {
-  const solarKw = numberOr(station.generationPower, 0);
-  const loadKw = numberOr(station.consumptionPower, 0);
-  const chargeKw = numberOr(station.chargePower, 0);
-  const dischargeKw = numberOr(station.dischargePower, 0);
-  const batteryPowerKw = station.batteryPower !== undefined ? numberOr(station.batteryPower, chargeKw - dischargeKw) : chargeKw - dischargeKw;
-  const gridPowerKw = station.gridPower !== undefined ? numberOr(station.gridPower, 0) : numberOr(station.purchasePower, 0) - numberOr(station.wirePower, 0);
+  const solarKw = powerKw(station.generationPower);
+  const loadKw = powerKw(station.consumptionPower);
+  const chargeKw = powerKw(station.chargePower);
+  const dischargeKw = powerKw(station.dischargePower);
+  const purchaseKw = powerKw(station.purchasePower);
+  const exportKw = powerKw(station.wirePower);
+  const batteryPowerKw = station.batteryPower !== undefined ? powerKw(station.batteryPower) : chargeKw - dischargeKw;
+  const gridPowerKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - exportKw;
   const today = month?.stationDataItems?.at(-1);
   const monthTotals = month?.stationDataItems ?? [];
   const monthlyProductionKwh = monthTotals.reduce((total, item) => total + numberOr(item.generationValue, 0), 0);
@@ -367,7 +392,7 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
   return {
     source: "live",
     status: "online",
-    lastUpdated: station.lastUpdateTime ? new Date(station.lastUpdateTime).toISOString() : nowIso(),
+    lastUpdated: parseDeyeDate(station.lastUpdateTime),
     metrics: {
       solarKw,
       loadKw,
@@ -382,9 +407,9 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
     flows: {
       solarToHomeKw: Math.min(solarKw, loadKw),
       solarToBatteryKw: Math.max(chargeKw, 0),
-      solarToGridKw: Math.max(numberOr(station.wirePower, 0), 0),
-      batteryToHomeKw: Math.max(dischargeKw, 0),
-      gridToHomeKw: Math.max(numberOr(station.purchasePower, gridPowerKw), 0),
+      solarToGridKw: Math.max(exportKw, 0),
+      batteryToHomeKw: Math.max(dischargeKw, -batteryPowerKw, 0),
+      gridToHomeKw: Math.max(purchaseKw, gridPowerKw, 0),
     },
   };
 }
@@ -401,10 +426,10 @@ function historyToDashboard(daily: DeyeStationHistory, power: DeyeStationHistory
   const powerPoints =
     power.stationDataItems?.map((item) => ({
       time: item.timeStamp
-        ? new Date(item.timeStamp).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+        ? new Date(parseDeyeDate(item.timeStamp)).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
         : "",
-      solarKw: numberOr(item.generationPower, 0),
-      loadKw: numberOr(item.consumptionPower, 0),
+      solarKw: powerKw(item.generationPower),
+      loadKw: powerKw(item.consumptionPower),
       batterySoc: numberOr(item.batterySOC, 0),
     })) ?? [];
 
