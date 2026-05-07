@@ -372,9 +372,11 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const solarToInverter = metrics.solarKw;
   const batteryToInverter = flows.batteryToHomeKw;
   const inverterToBattery = flows.solarToBatteryKw;
-  const gridToInverter = flows.gridToHomeKw;
-  const inverterToGrid = flows.solarToGridKw;
+  const gridToInverter = metrics.gridPowerKw >= 0 ? Math.max(metrics.gridPowerKw, flows.gridToHomeKw, 0) : 0;
+  const inverterToGrid = metrics.gridPowerKw < 0 ? Math.max(Math.abs(metrics.gridPowerKw), flows.solarToGridKw, 0) : 0;
   const inverterToUps = metrics.loadKw;
+  const gridLabel = gridToInverter > 0.005 ? "Grid Import" : inverterToGrid > 0.005 ? "Grid Export" : "Grid";
+  const gridValue = gridToInverter || inverterToGrid;
   const paths = {
     solarToInverter: "M 175 125 H 270 Q 310 125 310 165 V 214",
     batteryToInverter: "M 170 357 V 284 Q 170 250 204 250 H 252",
@@ -436,8 +438,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <FlowNode
             x={500}
             y={84}
-            label="Grid"
-            value={formatPower(metrics.gridPowerKw)}
+            label={gridLabel}
+            value={formatPower(gridValue)}
             icon={PlugZap}
             tone="text-blue-500"
           />
@@ -467,9 +469,9 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           />
           <MobileFlowNode
             className="left-[78%] top-[20%]"
-            label="Grid"
+            label={gridLabel}
             status={gridToInverter > 0.005 ? "On grid" : undefined}
-            value={formatCompactPower(metrics.gridPowerKw)}
+            value={formatCompactPower(gridValue)}
             icon={PlugZap}
             tone="text-white"
           />
