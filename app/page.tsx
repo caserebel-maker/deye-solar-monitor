@@ -40,6 +40,7 @@ type DashboardData = {
 const refreshMs = 45_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
+type DonutItem = { name: string; value: number };
 
 function formatPower(value: number) {
   const abs = Math.abs(value);
@@ -61,6 +62,11 @@ function sourceLabel(source: DashboardData["overview"]["source"]) {
 function percent(part: number, total: number) {
   if (!total) return 0;
   return Math.round((part / total) * 100);
+}
+
+function donutPercent(item: DonutItem, items: DonutItem[]) {
+  const total = items.reduce((sum, current) => sum + current.value, 0);
+  return percent(item.value, total);
 }
 
 function MetricCard({
@@ -182,10 +188,10 @@ function BaseFlowPath({ d }: { d: string }) {
 function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const { metrics, flows } = overview;
   const solarToInverter = metrics.solarKw;
-  const batteryToInverter = Math.max(flows.batteryToHomeKw, -metrics.batteryPowerKw, 0);
-  const inverterToBattery = Math.max(flows.solarToBatteryKw, metrics.batteryPowerKw, 0);
-  const gridToInverter = Math.max(flows.gridToHomeKw, metrics.gridPowerKw, 0);
-  const inverterToGrid = Math.max(flows.solarToGridKw, -metrics.gridPowerKw, 0);
+  const batteryToInverter = flows.batteryToHomeKw;
+  const inverterToBattery = flows.solarToBatteryKw;
+  const gridToInverter = flows.gridToHomeKw;
+  const inverterToGrid = flows.solarToGridKw;
   const inverterToUps = metrics.loadKw;
   const paths = {
     solarToInverter: "M 175 125 H 270 Q 310 125 310 165 V 214",
@@ -337,38 +343,29 @@ export default function DashboardPage() {
   }, [loadData]);
 
   const metrics = data?.overview.metrics;
+  const flows = data?.overview.flows;
   const batteryMode = useMemo(() => {
     if (!metrics) return "";
-    if (metrics.batteryPowerKw > 0.05) return `Charging ${formatPower(metrics.batteryPowerKw)}`;
-    if (metrics.batteryPowerKw < -0.05) return `Discharging ${formatPower(metrics.batteryPowerKw)}`;
+    if (metrics.batteryPowerKw > 0.05) return `Discharging ${formatPower(metrics.batteryPowerKw)}`;
+    if (metrics.batteryPowerKw < -0.05) return `Charging ${formatPower(metrics.batteryPowerKw)}`;
     return "Idle";
   }, [metrics]);
   const utilizationData = useMemo(() => {
-    const total = metrics?.monthlyLoadKwh ?? 0;
-    const loadKw = Math.max(metrics?.loadKw ?? 0, 0.001);
-    const importShare = Math.max(metrics?.gridPowerKw ?? 0, 0) / loadKw;
-    const dischargeShare = Math.max(-(metrics?.batteryPowerKw ?? 0), 0) / loadKw;
-    const pvShare = Math.max(1 - importShare - dischargeShare, 0);
-    const normalized = importShare + dischargeShare + pvShare || 1;
+    if (!flows) return [];
     return [
-      { name: "Import", value: Number(((total * importShare) / normalized).toFixed(2)) },
-      { name: "Discharge", value: Number(((total * dischargeShare) / normalized).toFixed(2)) },
-      { name: "PV", value: Number(((total * pvShare) / normalized).toFixed(2)) },
+      { name: "Grid", value: flows.gridToHomeKw },
+      { name: "Battery", value: flows.batteryToHomeKw },
+      { name: "PV", value: flows.solarToHomeKw },
     ].filter((item) => item.value > 0);
-  }, [metrics]);
+  }, [flows]);
   const productionMixData = useMemo(() => {
-    const total = metrics?.monthlyProductionKwh ?? 0;
-    const solarKw = Math.max(metrics?.solarKw ?? 0, 0.001);
-    const chargeShare = Math.max(metrics?.batteryPowerKw ?? 0, 0) / solarKw;
-    const consumptionShare = Math.min(Math.max(metrics?.loadKw ?? 0, 0) / solarKw, 1);
-    const exportShare = Math.max(1 - chargeShare - consumptionShare, 0);
-    const normalized = chargeShare + consumptionShare + exportShare || 1;
+    if (!flows) return [];
     return [
-      { name: "Charge", value: Number(((total * chargeShare) / normalized).toFixed(2)) },
-      { name: "Consumption", value: Number(((total * consumptionShare) / normalized).toFixed(2)) },
-      { name: "Export", value: Number(((total * exportShare) / normalized).toFixed(2)) },
+      { name: "UPS Load", value: flows.solarToHomeKw },
+      { name: "Battery Charge", value: flows.solarToBatteryKw },
+      { name: "Grid Export", value: flows.solarToGridKw },
     ].filter((item) => item.value > 0);
-  }, [metrics]);
+  }, [flows]);
 
   if (isLoading) return <SkeletonDashboard />;
   if (!data || !metrics) return null;
@@ -499,7 +496,7 @@ export default function DashboardPage() {
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: utilizationColors[index] }} />
                         {item.name}
                       </span>
-                      <strong className="text-slate-950">{percent(item.value, metrics.monthlyLoadKwh)}%</strong>
+                      <strong className="text-slate-950">{donutPercent(item, utilizationData)}%</strong>
                     </div>
                   ))}
                 </div>
@@ -527,7 +524,7 @@ export default function DashboardPage() {
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: productionColors[index] }} />
                         {item.name}
                       </span>
-                      <strong className="text-slate-950">{percent(item.value, metrics.monthlyProductionKwh)}%</strong>
+                      <strong className="text-slate-950">{donutPercent(item, productionMixData)}%</strong>
                     </div>
                   ))}
                 </div>
@@ -569,7 +566,7 @@ export default function DashboardPage() {
         <section className="mt-4 grid gap-4 lg:grid-cols-4">
           <MetricCard title="Battery SOC" value={`${metrics.batterySoc}%`} detail={batteryMode} icon={BatteryCharging} accent="bg-cyan-100 text-cyan-600" />
           <MetricCard title="Grid Import / Export" value={formatPower(metrics.gridPowerKw)} detail={metrics.gridPowerKw >= 0 ? "Importing from grid" : "Exporting to grid"} icon={PlugZap} accent="bg-indigo-100 text-indigo-600" />
-          <MetricCard title="Battery Power" value={formatPower(metrics.batteryPowerKw)} detail={metrics.batteryPowerKw >= 0 ? "Charge power" : "Discharge power"} icon={Zap} accent="bg-teal-100 text-teal-600" />
+          <MetricCard title="Battery Power" value={formatPower(metrics.batteryPowerKw)} detail={metrics.batteryPowerKw >= 0 ? "Discharge power" : "Charge power"} icon={Zap} accent="bg-teal-100 text-teal-600" />
           <MetricCard title="Monthly Load" value={metrics.monthlyLoadKwh.toFixed(0)} unit="kWh" detail="Consumption this month" icon={Home} accent="bg-orange-100 text-orange-600" />
         </section>
 

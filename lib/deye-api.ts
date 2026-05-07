@@ -206,14 +206,15 @@ function wave(seed: number, min: number, max: number) {
 export function mockOverview(): SolarOverview {
   const solarKw = wave(0.2, 2.8, 7.4);
   const loadKw = wave(1.7, 1.3, 5.6);
-  const batteryPowerKw = Number((solarKw - loadKw - 0.4).toFixed(2));
-  const gridPowerKw = Number((loadKw - solarKw - Math.min(batteryPowerKw, 0)).toFixed(2));
-  const charging = Math.max(batteryPowerKw, 0);
-  const discharging = Math.abs(Math.min(batteryPowerKw, 0));
+  const surplusKw = Number((solarKw - loadKw).toFixed(2));
+  const charging = Math.max(surplusKw * 0.75, 0);
+  const discharging = Math.max(-surplusKw * 0.65, 0);
+  const batteryPowerKw = Number((discharging - charging).toFixed(2));
+  const gridPowerKw = Number(Math.max(loadKw - solarKw - discharging, 0).toFixed(2));
 
   return {
     source: "mock",
-    status: batteryPowerKw < -2.4 ? "warning" : "online",
+    status: batteryPowerKw > 2.4 ? "warning" : "online",
     lastUpdated: nowIso(),
     metrics: {
       solarKw,
@@ -231,7 +232,7 @@ export function mockOverview(): SolarOverview {
       solarToBatteryKw: charging,
       solarToGridKw: Math.max(solarKw - loadKw - charging, 0),
       batteryToHomeKw: discharging,
-      gridToHomeKw: Math.max(gridPowerKw, 0),
+      gridToHomeKw: gridPowerKw,
     },
   };
 }
@@ -383,8 +384,15 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
   const dischargeKw = powerKw(station.dischargePower);
   const purchaseKw = powerKw(station.purchasePower);
   const exportKw = powerKw(station.wirePower);
-  const batteryPowerKw = station.batteryPower !== undefined ? powerKw(station.batteryPower) : chargeKw - dischargeKw;
-  const gridPowerKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - exportKw;
+  const rawBatteryKw = station.batteryPower !== undefined ? powerKw(station.batteryPower) : dischargeKw - chargeKw;
+  const batteryDischargeKw = Math.max(dischargeKw, rawBatteryKw, 0);
+  const batteryChargeKw = Math.max(chargeKw, -rawBatteryKw, 0);
+  const batteryPowerKw = Number((batteryDischargeKw - batteryChargeKw).toFixed(3));
+  const rawGridKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - exportKw;
+  const canExportSolar = solarKw > 0.05;
+  const gridImportKw = Math.max(purchaseKw, rawGridKw, canExportSolar ? 0 : exportKw, 0);
+  const gridExportKw = canExportSolar ? Math.max(exportKw, -rawGridKw, 0) : 0;
+  const gridPowerKw = Number((gridImportKw - gridExportKw).toFixed(3));
   const today = month?.stationDataItems?.at(-1);
   const monthTotals = month?.stationDataItems ?? [];
   const monthlyProductionKwh = monthTotals.reduce((total, item) => total + numberOr(item.generationValue, 0), 0);
@@ -407,10 +415,10 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
     },
     flows: {
       solarToHomeKw: Math.min(solarKw, loadKw),
-      solarToBatteryKw: Math.max(chargeKw, 0),
-      solarToGridKw: Math.max(exportKw, 0),
-      batteryToHomeKw: Math.max(dischargeKw, -batteryPowerKw, 0),
-      gridToHomeKw: Math.max(purchaseKw, gridPowerKw, 0),
+      solarToBatteryKw: batteryChargeKw,
+      solarToGridKw: gridExportKw,
+      batteryToHomeKw: batteryDischargeKw,
+      gridToHomeKw: gridImportKw,
     },
   };
 }
