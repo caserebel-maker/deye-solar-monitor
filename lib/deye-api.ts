@@ -150,7 +150,7 @@ const nowIso = () => new Date().toISOString();
 
 function powerKw(value: unknown, fallback = 0) {
   const parsed = numberOr(value, fallback);
-  return Math.abs(parsed) > 100 ? Number((parsed / 1000).toFixed(3)) : parsed;
+  return Number((parsed / 1000).toFixed(3));
 }
 
 function parseDeyeDate(value: unknown) {
