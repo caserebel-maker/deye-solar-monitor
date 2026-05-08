@@ -6,16 +6,13 @@
 
 ## §0 TL;DR
 
-✅ **Tapo CCTV pipeline + Pan/Tilt control = LIVE on production**
+✅ **Tapo CCTV pipeline + Pan/Tilt control = LIVE + persistent**
 
 - Live URL: https://monitor-solar-inverter-deye-battery.vercel.app/
 - HLS: https://home-macmini.tail1d5579.ts.net/api/stream.m3u8?src=tapo
 - PTZ proxy: https://home-macmini.tail1d5579.ts.net/control/ptz (Bearer-protected)
-- การ์ด CCTV ตอนนี้มี ↑ ↓ ← → + ปุ่มหยุด — ส่งคำสั่งผ่าน ONVIF ไปกล้อง Tapo C545D
-
-⚠️ **One known persistence gap — read §3.2 before reboot:** PTZ proxy ตอนนี้รันผ่าน
-`nohup` (Terminal session ของผม) ไม่ใช่ LaunchAgent — ถ้า Mac mini reboot จะตาย
-ต้อง start manually หรือแก้ Local Network privacy ก่อน (cmd อยู่ใน §3.2)
+- การ์ด CCTV มี ↑ ↓ ← → + ปุ่มหยุด — ส่งคำสั่งผ่าน ONVIF ไปกล้อง Tapo C545D
+- ทุก daemon (go2rtc, tailscaled, PTZ proxy) อยู่ใน LaunchAgent → auto-restart หลัง reboot
 
 ---
 
@@ -37,7 +34,7 @@
 | Vercel `NEXT_PUBLIC_CCTV_HLS_URL` (Prod + Preview + Dev) | ✅ |
 | `vercel deploy --prod` | ✅ |
 
-### ส่วน 2 — PTZ control (✅ working, ⚠️ persistence pending)
+### ส่วน 2 — PTZ control (✅ working + persistent)
 
 | ขั้นตอน | สถานะ |
 |---|---|
@@ -48,8 +45,9 @@
 | Vercel envs `CCTV_PTZ_TOKEN` (encrypted) + `CCTV_PTZ_ENDPOINT` (plain) | ✅ |
 | `app/api/cctv/ptz/route.ts` — server-side proxy with bearer | ✅ |
 | `<CctvPtzControls>` d-pad ในการ์ด CCTV | ✅ |
-| `vercel deploy --prod` (deploy 2nd round) | ✅ |
-| **LaunchAgent ของ PTZ proxy** | ❌ blocked — ดู §3.2 |
+| `vercel deploy --prod` | ✅ |
+| LaunchAgent `com.ebci.cctv-ptz` (ProcessType=Interactive + Aqua) | ✅ |
+| **Note:** rotate token แล้ว 1 ครั้ง — token เก่าใน git history ใช้ไม่ได้ | ✅ |
 
 ---
 
@@ -106,36 +104,20 @@ cd /Volumes/C1TB/EB-CI/deye-solar-monitor && bash scripts/cctv-health.sh
 
 เช็ค 5 ชั้น (camera, go2rtc, tailscale+funnel, PTZ proxy, external HTTPS) + บอกคำสั่งแก้ทุก fail
 
-### §3.2 ⚠️ PTZ proxy persistence — **ต้องแก้ก่อน reboot ครั้งหน้า**
+### §3.2 PTZ proxy LaunchAgent (resolved)
 
-**ปัญหา:** macOS Tahoe (15.x+) มี **Local Network privacy** ที่ block process ที่ launchd
-เปิดเอง (LaunchAgent) จากการเข้าถึง 192.168.x.x ผลคือ `tailscaled` + `go2rtc` ผ่านได้
-(approve ตอน first run จาก Terminal) แต่ Python ใหม่ใน venv ไม่ inherit permission
+**ปัญหาที่เคยเจอ:** macOS Tahoe (15.x+) Local Network privacy block process ที่
+launchd เปิดเองจากการเข้าถึง 192.168.x.x — `tailscaled` + `go2rtc` ผ่านได้แต่
+Python ใหม่ใน venv ไม่ inherit permission
 
-**Workaround ปัจจุบัน:** PTZ proxy รันผ่าน `nohup` จาก shell ตอนนี้ (PID detach)
-อยู่จน Mac mini reboot
+**ที่แก้ในที่สุด:** เพิ่ม `ProcessType=Interactive` +
+`LimitLoadToSessionType=[Aqua, Background, StandardIO]` ใน `com.ebci.cctv-ptz.plist`
+ทำให้ macOS treat agent เป็น GUI-session process → permission grant ได้
 
-**Permanent fix — เลือก 1 อันต่อไปนี้:**
-
-A. **เพิ่ม Python ใน Local Network privacy manually** (ง่ายสุด):
-1. เปิด System Settings → Privacy & Security → Local Network
-2. เลื่อนหา `python3` หรือ `uv` หรือ binary ใน `~/cctv-control/.venv/bin/python`
-3. ติ๊ก ✓ → save
-4. `launchctl load -w ~/Library/LaunchAgents/com.ebci.cctv-ptz.plist`
-
-B. **LaunchDaemon (system-level, root)** — ต้อง sudo password:
+ถ้าหายไปอีก:
 ```bash
-sudo cp ~/Library/LaunchAgents/com.ebci.cctv-ptz.plist /Library/LaunchDaemons/
-sudo chown root:wheel /Library/LaunchDaemons/com.ebci.cctv-ptz.plist
-sudo launchctl load /Library/LaunchDaemons/com.ebci.cctv-ptz.plist
-launchctl unload ~/Library/LaunchAgents/com.ebci.cctv-ptz.plist
-```
-
-C. **ทุกครั้งหลัง reboot รันใน terminal:**
-```bash
-cd ~/cctv-control && set -a; source .env; set +a && \
-  nohup uv run uvicorn server:app --host 127.0.0.1 --port 1985 \
-  > /tmp/cctv-ptz.log 2>&1 & disown
+launchctl kickstart -k gui/$UID/com.ebci.cctv-ptz
+# ถ้ายังไม่ขึ้น → tail /tmp/cctv-ptz.err ดู error
 ```
 
 ### §3.3 Manual deep-dive
@@ -160,7 +142,6 @@ curl -s -X POST https://monitor-solar-inverter-deye-battery.vercel.app/api/cctv/
 
 ## §4 Future enhancements
 
-- [ ] **Persist PTZ proxy** (ดู §3.2)
 - [ ] **Basic auth บน dashboard** — ตอนนี้ public anyone with URL กด PTZ ได้
   - แนะนำ: NextAuth + Google OAuth (เฉพาะ caserebel@gmail.com / pondsuriya20@gmail.com)
 - [ ] **Rate limit** บน `/api/cctv/ptz` — กัน flood spam
@@ -168,6 +149,8 @@ curl -s -X POST https://monitor-solar-inverter-deye-battery.vercel.app/api/cctv/
 - [ ] **Velocity slider** — ปรับ speed PTZ ได้
 - [ ] WebRTC mode ใน go2rtc (latency <1s แทน HLS 5–10s)
 - [ ] go2rtc basic auth (`auth: "viewer:..."`) — กัน public ดู stream
+- [ ] go2rtc `tapo://` source — ลองอีกครั้งเมื่อ go2rtc รองรับ KLAP protocol
+  (FW Tapo C545D ใหม่ใช้ KLAP — go2rtc 1.9.14 ตอบ 401 ทุก variant ของ user/pass)
 
 ---
 
