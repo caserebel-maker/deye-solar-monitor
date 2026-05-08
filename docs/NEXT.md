@@ -142,12 +142,15 @@ cd ~/cctv-control && set -a; source .env; set +a && \
 
 ```bash
 # PTZ test (จาก local — bypass Funnel + bearer)
+# token อยู่ใน ~/cctv-control/.env (ห้าม commit token ลง git)
+TOKEN=$(grep ^CCTV_PTZ_TOKEN= ~/cctv-control/.env | cut -d= -f2)
 curl -s -X POST http://localhost:1985/ptz \
-  -H 'Authorization: Bearer fFA0YNgJXicSmk5iqQkt1JyB77j0-pfVIbJrFZovzQc' \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'content-type: application/json' \
   -d '{"direction":"right","duration_ms":300}'
 
 # PTZ test (จาก public internet — ผ่าน Vercel API route + Funnel)
+# ไม่ต้องใส่ token ที่นี่ — Vercel API route ใส่ให้ (server-side)
 curl -s -X POST https://monitor-solar-inverter-deye-battery.vercel.app/api/cctv/ptz \
   -H 'content-type: application/json' \
   -d '{"direction":"left","duration_ms":300}'
