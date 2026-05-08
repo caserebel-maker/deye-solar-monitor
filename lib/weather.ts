@@ -20,6 +20,7 @@ type OpenMeteoResponse = {
   longitude: number;
   timezone: string;
   current?: {
+    time: string;
     temperature_2m: number;
     weather_code: number;
   };
@@ -46,17 +47,18 @@ export async function getWeatherForecast(): Promise<WeatherForecast> {
     const data = (await response.json()) as OpenMeteoResponse;
     if (!data.hourly || !data.current) throw new Error("Open-Meteo missing hourly/current");
 
-    const nowMs = Date.now();
     const allHours: WeatherHour[] = data.hourly.time.map((time, index) => ({
       time,
       temperatureC: data.hourly!.temperature_2m[index],
       weatherCode: data.hourly!.weather_code[index],
       precipProbability: data.hourly!.precipitation_probability?.[index] ?? 0,
     }));
-    const startIndex = Math.max(
-      0,
-      allHours.findIndex((hour) => new Date(hour.time).getTime() >= nowMs - 30 * 60 * 1000),
-    );
+    // Anchor on the local hour Open-Meteo reports as "current" — both fields
+    // are returned in the same local-time format with no timezone offset, so
+    // a plain string match avoids any UTC parsing pitfalls on the Vercel runtime.
+    const currentHourString = data.current.time.slice(0, 13) + ":00";
+    const matchIndex = data.hourly.time.findIndex((time) => time === currentHourString);
+    const startIndex = matchIndex >= 0 ? matchIndex : 0;
     const hourly = allHours.slice(startIndex, startIndex + 12);
 
     return {
