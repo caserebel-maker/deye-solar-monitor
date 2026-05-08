@@ -742,7 +742,7 @@ function WeatherForecastCard() {
           return (
             <div
               key={hour.time}
-              className="flex min-w-[64px] flex-col items-center gap-1 rounded-2xl border border-white/55 bg-white/40 px-2.5 py-3 sm:min-w-[72px] lg:min-w-0 lg:flex-1"
+              className="flex min-w-[64px] flex-col items-center gap-1 rounded-2xl border border-white/70 bg-white/5 px-2.5 py-3 sm:min-w-[72px] lg:min-w-0 lg:flex-1"
             >
               <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{hourLabel}</span>
               {createElement(weatherIcon(hour.weatherCode), {
