@@ -83,34 +83,44 @@ fi
 echo
 
 # 5. External HTTPS pipeline
+# Mac mini's own DNS resolver intercepts *.ts.net (it's a tailnet member),
+# so resolve through public DNS first and curl with --resolve.
 echo "[5/5] External HTTPS endpoint"
-M3U8="https://$FUNNEL_HOST/api/stream.m3u8?src=tapo"
-if HEAD=$(curl -sI -m 10 "$M3U8" 2>/dev/null) && echo "$HEAD" | head -1 | grep -q "200"; then
-  ok "master m3u8 returns 200 OK"
+PUB_IP=$(dig +short A "$FUNNEL_HOST" @8.8.8.8 2>/dev/null | head -1)
+if [ -z "$PUB_IP" ]; then
+  bad "public DNS for $FUNNEL_HOST unresolved — Funnel DNS not propagated"
+  echo
+  # Skip remaining external checks
 else
-  bad "master m3u8 unreachable — DNS or Funnel issue"
-fi
-# segment download (real video bytes)
-ID=$(curl -s -m 5 "$M3U8" 2>/dev/null | grep -oE 'id=[A-Za-z0-9]+' | head -1 | sed 's/id=//')
-if [ -n "$ID" ]; then
-  SEG_URL="https://$FUNNEL_HOST/api/hls/segment.ts?id=$ID&n=0"
-  SIZE=$(curl -s -m 10 "$SEG_URL" -o /dev/null -w '%{size_download}' 2>/dev/null)
-  if [ "${SIZE:-0}" -gt 10000 ]; then
-    ok "video segment downloaded (${SIZE} bytes)"
+  RESOLVE="--resolve $FUNNEL_HOST:443:$PUB_IP"
+  M3U8="https://$FUNNEL_HOST/api/stream.m3u8?src=tapo"
+  if HEAD=$(curl -sI -m 10 $RESOLVE "$M3U8" 2>/dev/null) && echo "$HEAD" | head -1 | grep -q "200"; then
+    ok "master m3u8 returns 200 OK (via $PUB_IP)"
   else
-    bad "segment download failed (size=$SIZE) — go2rtc may have lost RTSP"
+    bad "master m3u8 unreachable — Funnel issue"
   fi
-else
-  bad "could not extract session id from master playlist"
+  # segment download (real video bytes)
+  ID=$(curl -s -m 5 $RESOLVE "$M3U8" 2>/dev/null | grep -oE 'id=[A-Za-z0-9]+' | head -1 | sed 's/id=//')
+  if [ -n "$ID" ]; then
+    SEG_URL="https://$FUNNEL_HOST/api/hls/segment.ts?id=$ID&n=0"
+    SIZE=$(curl -s -m 10 $RESOLVE "$SEG_URL" -o /dev/null -w '%{size_download}' 2>/dev/null)
+    if [ "${SIZE:-0}" -gt 10000 ]; then
+      ok "video segment downloaded (${SIZE} bytes)"
+    else
+      bad "segment download failed (size=$SIZE) — go2rtc may have lost RTSP"
+    fi
+  else
+    bad "could not extract session id from master playlist"
+  fi
+  # PTZ proxy via Funnel
+  PTZ_HEALTH=$(curl -s -m 5 $RESOLVE "https://$FUNNEL_HOST/control/healthz" 2>/dev/null)
+  if echo "$PTZ_HEALTH" | grep -q '"ok":true'; then
+    ok "PTZ proxy reachable through Funnel"
+  else
+    bad "PTZ proxy not reachable through Funnel — check Tailscale serve mount /control"
+  fi
+  echo
 fi
-# PTZ proxy via Funnel
-PTZ_HEALTH=$(curl -s -m 5 "https://$FUNNEL_HOST/control/healthz" 2>/dev/null)
-if echo "$PTZ_HEALTH" | grep -q '"ok":true'; then
-  ok "PTZ proxy reachable through Funnel"
-else
-  bad "PTZ proxy not reachable through Funnel — check Tailscale serve mount /control"
-fi
-echo
 
 # Summary
 if [ "$FAIL_COUNT" -eq 0 ]; then
