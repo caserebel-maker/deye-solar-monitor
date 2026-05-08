@@ -734,7 +734,7 @@ function WeatherForecastCard() {
           <span className="data-readout text-xl font-black text-slate-950">{Math.round(forecast.current.temperatureC)}°</span>
         </div>
       </div>
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:gap-2.5">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:gap-2.5 lg:mx-0 lg:overflow-visible lg:px-0">
         {forecast.hourly.map((hour) => {
           const tone = weatherTone(hour.weatherCode);
           const date = new Date(hour.time);
@@ -742,7 +742,7 @@ function WeatherForecastCard() {
           return (
             <div
               key={hour.time}
-              className="flex min-w-[64px] flex-col items-center gap-1 rounded-2xl border border-white/55 bg-white/40 px-2.5 py-3 sm:min-w-[72px]"
+              className="flex min-w-[64px] flex-col items-center gap-1 rounded-2xl border border-white/55 bg-white/40 px-2.5 py-3 sm:min-w-[72px] lg:min-w-0 lg:flex-1"
             >
               <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{hourLabel}</span>
               {createElement(weatherIcon(hour.weatherCode), {
