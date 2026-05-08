@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -23,9 +23,16 @@ import {
   CalendarDays,
   Camera,
   ChartSpline,
+  Cloud,
+  CloudDrizzle,
+  CloudFog,
+  CloudLightning,
+  CloudRain,
+  CloudSnow,
   CloudSun,
   CloudOff,
   Cpu,
+  Droplets,
   Info,
   Home,
   Maximize,
@@ -37,6 +44,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { Alarm, SolarAlarms, SolarHistory, SolarOverview } from "@/lib/deye-api";
+import type { WeatherForecast } from "@/lib/weather";
 
 type DashboardData = {
   overview: SolarOverview;
@@ -668,6 +676,96 @@ function CctvLivePlayer({ src }: { src: string }) {
   );
 }
 
+function weatherIcon(code: number) {
+  if (code === 0) return Sun;
+  if (code === 1 || code === 2) return CloudSun;
+  if (code === 3) return Cloud;
+  if (code === 45 || code === 48) return CloudFog;
+  if (code >= 51 && code <= 57) return CloudDrizzle;
+  if (code >= 61 && code <= 67) return CloudRain;
+  if (code >= 71 && code <= 77) return CloudSnow;
+  if (code >= 80 && code <= 82) return CloudRain;
+  if (code >= 95) return CloudLightning;
+  return CloudSun;
+}
+
+function weatherTone(code: number) {
+  if (code === 0 || code === 1) return "text-amber-400";
+  if (code === 2 || code === 3) return "text-slate-400";
+  if (code >= 45 && code <= 48) return "text-slate-400";
+  if (code >= 51 && code <= 67) return "text-sky-400";
+  if (code >= 80 && code <= 82) return "text-sky-500";
+  if (code >= 95) return "text-violet-500";
+  return "text-amber-400";
+}
+
+function WeatherForecastCard() {
+  const [forecast, setForecast] = useState<WeatherForecast | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/weather/forecast")
+      .then((response) => response.json())
+      .then((data: WeatherForecast) => {
+        if (!cancelled) setForecast(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!forecast || forecast.hourly.length === 0) return null;
+
+  const currentTone = weatherTone(forecast.current.weatherCode);
+
+  return (
+    <section className="glass premium-panel rounded-3xl p-4 sm:p-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/70">Forecast</p>
+          <h2 className="mt-1 truncate text-lg font-semibold text-slate-950">12-hour outlook</h2>
+        </div>
+        <div className="flex items-center gap-2 rounded-2xl border border-white/55 bg-white/45 px-3 py-2">
+          {createElement(weatherIcon(forecast.current.weatherCode), {
+            className: `h-6 w-6 ${currentTone}`,
+            strokeWidth: 2.2,
+          })}
+          <span className="data-readout text-xl font-black text-slate-950">{Math.round(forecast.current.temperatureC)}°</span>
+        </div>
+      </div>
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:gap-2.5">
+        {forecast.hourly.map((hour) => {
+          const tone = weatherTone(hour.weatherCode);
+          const date = new Date(hour.time);
+          const hourLabel = date.toLocaleTimeString("th-TH", { hour: "2-digit", hour12: false });
+          return (
+            <div
+              key={hour.time}
+              className="flex min-w-[64px] flex-col items-center gap-1 rounded-2xl border border-white/55 bg-white/40 px-2.5 py-3 sm:min-w-[72px]"
+            >
+              <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{hourLabel}</span>
+              {createElement(weatherIcon(hour.weatherCode), {
+                className: `h-6 w-6 ${tone}`,
+                strokeWidth: 2.2,
+              })}
+              <span className="data-readout text-lg font-black leading-none text-slate-950">
+                {Math.round(hour.temperatureC)}°
+              </span>
+              {hour.precipProbability > 5 && (
+                <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-sky-600">
+                  <Droplets className="h-3 w-3" />
+                  {hour.precipProbability}%
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ChartPanel({
   title,
   eyebrow,
@@ -977,6 +1075,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-4 grid gap-4">
+          <WeatherForecastCard />
           <section className="glass premium-panel rounded-3xl p-5" id="plant-section">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-950">Solar & Utilization</h2>
