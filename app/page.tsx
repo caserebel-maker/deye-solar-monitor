@@ -32,6 +32,7 @@ import {
   CloudDrizzle,
   CloudFog,
   CloudLightning,
+  CloudMoon,
   CloudRain,
   CloudSnow,
   CloudSun,
@@ -43,6 +44,7 @@ import {
   Maximize,
   Minimize,
   Moon,
+  MoonStar,
   PlugZap,
   RefreshCw,
   Sun,
@@ -669,9 +671,17 @@ function CctvLivePlayer({ src }: { src: string }) {
       video.removeEventListener("stalled", handleStalled);
     };
 
+    const tryPlay = () => {
+      // muted + playsInline lets Chromium-family browsers autoplay; the
+      // catch is a no-op so the player stays paused with controls until
+      // the user taps if the browser policy still blocks us.
+      video.play().catch(() => {});
+    };
+
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
-      video.play().catch(() => {});
+      video.addEventListener("loadedmetadata", tryPlay, { once: true });
+      tryPlay();
       return cleanup;
     }
 
@@ -698,6 +708,7 @@ function CctvLivePlayer({ src }: { src: string }) {
         });
         instance.loadSource(src);
         instance.attachMedia(video);
+        instance.on(Hls.Events.MANIFEST_PARSED, tryPlay);
         instance.on(Hls.Events.ERROR, (_event, data) => {
           if (!data.fatal) return;
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -777,9 +788,9 @@ function CctvLivePlayer({ src }: { src: string }) {
   );
 }
 
-function weatherIcon(code: number) {
-  if (code === 0) return Sun;
-  if (code === 1 || code === 2) return CloudSun;
+function weatherIcon(code: number, isDay = true) {
+  if (code === 0) return isDay ? Sun : MoonStar;
+  if (code === 1 || code === 2) return isDay ? CloudSun : CloudMoon;
   if (code === 3) return Cloud;
   if (code === 45 || code === 48) return CloudFog;
   if (code >= 51 && code <= 57) return CloudDrizzle;
@@ -787,17 +798,17 @@ function weatherIcon(code: number) {
   if (code >= 71 && code <= 77) return CloudSnow;
   if (code >= 80 && code <= 82) return CloudRain;
   if (code >= 95) return CloudLightning;
-  return CloudSun;
+  return isDay ? CloudSun : CloudMoon;
 }
 
-function weatherTone(code: number) {
-  if (code === 0 || code === 1) return "text-amber-400";
-  if (code === 2 || code === 3) return "text-slate-400";
+function weatherTone(code: number, isDay = true) {
+  if (code === 0 || code === 1) return isDay ? "text-amber-400" : "text-indigo-300";
+  if (code === 2 || code === 3) return isDay ? "text-slate-400" : "text-indigo-300";
   if (code >= 45 && code <= 48) return "text-slate-400";
   if (code >= 51 && code <= 67) return "text-sky-400";
   if (code >= 80 && code <= 82) return "text-sky-500";
   if (code >= 95) return "text-violet-500";
-  return "text-amber-400";
+  return isDay ? "text-amber-400" : "text-indigo-300";
 }
 
 function WeatherForecastCard() {
@@ -818,7 +829,7 @@ function WeatherForecastCard() {
 
   if (!forecast || forecast.hourly.length === 0) return null;
 
-  const currentTone = weatherTone(forecast.current.weatherCode);
+  const currentTone = weatherTone(forecast.current.weatherCode, forecast.current.isDay);
 
   return (
     <section className="glass premium-panel rounded-3xl p-4 sm:p-5">
@@ -828,7 +839,7 @@ function WeatherForecastCard() {
           <h2 className="mt-1 truncate text-lg font-semibold text-slate-950">12-hour outlook</h2>
         </div>
         <div className="flex items-center gap-2 rounded-2xl border border-white/55 bg-white/45 px-3 py-2">
-          {createElement(weatherIcon(forecast.current.weatherCode), {
+          {createElement(weatherIcon(forecast.current.weatherCode, forecast.current.isDay), {
             className: `h-6 w-6 ${currentTone}`,
             strokeWidth: 2.2,
           })}
@@ -837,7 +848,7 @@ function WeatherForecastCard() {
       </div>
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:gap-2.5 lg:mx-0 lg:overflow-visible lg:px-0">
         {forecast.hourly.map((hour) => {
-          const tone = weatherTone(hour.weatherCode);
+          const tone = weatherTone(hour.weatherCode, hour.isDay);
           const date = new Date(hour.time);
           const hourLabel = date.toLocaleTimeString("th-TH", { hour: "2-digit", hour12: false });
           return (
@@ -846,7 +857,7 @@ function WeatherForecastCard() {
               className="flex min-w-[64px] flex-col items-center gap-1 rounded-2xl border border-white/70 bg-white/5 px-2.5 py-3 sm:min-w-[72px] lg:min-w-0 lg:flex-1"
             >
               <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{hourLabel}</span>
-              {createElement(weatherIcon(hour.weatherCode), {
+              {createElement(weatherIcon(hour.weatherCode, hour.isDay), {
                 className: `h-6 w-6 ${tone}`,
                 strokeWidth: 2.2,
               })}
