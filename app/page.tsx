@@ -820,7 +820,7 @@ export default function DashboardPage() {
   if (!data || !metrics) return null;
 
   return (
-    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-24 pt-3 sm:px-5 sm:pb-4 lg:px-6`}>
+    <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-24 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-5 sm:pb-4 sm:pt-3 lg:px-6`}>
       <main className="mx-auto max-w-[1860px]" id="dashboard-top">
         <header className="mb-3 flex flex-col gap-2 rounded-[1.4rem] border border-white/60 bg-white/38 px-3 py-2.5 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl sm:mb-4 sm:gap-3 sm:rounded-3xl sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
@@ -984,12 +984,12 @@ export default function DashboardPage() {
           </div>
         </section>
       </main>
-      <nav className="mobile-tabbar fixed inset-x-3 bottom-3 z-50 grid grid-cols-4 gap-1 rounded-[1.5rem] border border-white/60 bg-white/80 p-1.5 shadow-2xl backdrop-blur-2xl sm:hidden">
+      <nav className="mobile-tabbar fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 gap-0.5 border-t border-white/15 bg-slate-950/85 px-2 pt-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] backdrop-blur-2xl sm:hidden">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
-              className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-1.5 text-[11px] font-semibold ${activeTab === tab.id ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-lg shadow-indigo-500/20" : "text-slate-500"}`}
+              className={`flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-[10px] font-semibold ${activeTab === tab.id ? "bg-gradient-to-r from-indigo-500 to-fuchsia-400 text-white shadow-md shadow-indigo-500/20" : "text-slate-400"}`}
               key={tab.id}
               onClick={() => selectTab(tab.id)}
               type="button"
