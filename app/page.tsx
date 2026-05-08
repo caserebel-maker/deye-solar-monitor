@@ -379,12 +379,12 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const gridLabel = gridToInverter > 0.005 ? "Grid Import" : inverterToGrid > 0.005 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
-    solarToInverter: "M 150 148 V 205 H 310 V 212",
-    batteryToInverter: "M 150 362 V 310 H 252",
-    inverterToBattery: "M 252 310 H 150 V 362",
-    gridToInverter: "M 470 148 V 205 H 310 V 212",
-    inverterToGrid: "M 310 212 V 205 H 470 V 148",
-    inverterToUps: "M 310 310 V 362",
+    solarToInverter: "M 150 138 V 190 H 310 V 192",
+    batteryToInverter: "M 150 302 V 250 H 252",
+    inverterToBattery: "M 252 250 H 150 V 302",
+    gridToInverter: "M 470 138 V 190 H 310 V 192",
+    inverterToGrid: "M 310 192 V 190 H 470 V 138",
+    inverterToUps: "M 310 288 V 307",
   };
   const mobilePaths = {
     solarToInverter: "M 104 116 H 130 Q 152 116 152 158 V 224 H 148",
@@ -406,8 +406,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="energy-flow-canvas relative mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.55/1] lg:min-h-[470px]">
-        <svg viewBox="0 0 620 500" className="hidden h-full w-[68%] lg:block" preserveAspectRatio="xMidYMid meet">
+      <div className="energy-flow-canvas mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[2/1] lg:min-h-[390px]">
+        <svg viewBox="0 0 620 430" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -425,12 +425,12 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <FlowPath d={paths.gridToInverter} value={gridToInverter} delay="-0.9s" />
           <FlowPath d={paths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
           <FlowPath d={paths.inverterToUps} value={inverterToUps} delay="-1.25s" />
-          <FlowNode x={150} y={100} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
-          <FlowNode x={310} y={260} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-          <FlowNode x={310} y={410} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+          <FlowNode x={150} y={90} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+          <FlowNode x={310} y={240} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
+          <FlowNode x={310} y={355} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
             x={150}
-            y={410}
+            y={355}
             label="Battery"
             value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
             icon={BatteryFull}
@@ -438,44 +438,13 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           />
           <FlowNode
             x={470}
-            y={100}
+            y={90}
             label={gridLabel}
             value={formatPower(gridValue)}
             icon={PlugZap}
             tone="text-blue-500"
           />
         </svg>
-        <div className="absolute bottom-9 right-[6%] hidden w-[245px] rounded-3xl border border-white/55 bg-white/50 p-4 shadow-2xl backdrop-blur-xl lg:block">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-500/70">Plant Summary</p>
-          <div className="mt-3 grid gap-3">
-            <div>
-              <p className="text-xs text-slate-500">Accumulative production</p>
-              <p className="data-readout mt-1 text-2xl font-black leading-none text-slate-950">
-                {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Accumulative consumption</p>
-              <p className="data-readout mt-1 text-2xl font-black leading-none text-slate-950">
-                {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 border-t border-white/55 pt-3">
-              <div>
-                <p className="text-[11px] text-slate-500">Daily Production</p>
-                <p className="data-readout mt-1 text-lg font-black text-slate-950">
-                  {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-[10px]">kWh</span>
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-slate-500">Weather</p>
-                <p className="data-readout mt-1 flex items-center gap-1 text-lg font-black text-slate-950">
-                  <CloudSun className="h-4 w-4" /> 33 <span className="text-[10px]">°C</span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
         <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
             <BaseFlowPath d={mobilePaths.solarToInverter} />
@@ -508,6 +477,32 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
             tone="text-white"
           />
           <MobileFlowNode className="left-[78%] top-[84%]" label="Load" value="0 W" icon={Home} tone="text-white" />
+        </div>
+      </div>
+      <div className="mt-3 hidden grid-cols-4 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur lg:grid">
+        <div className="rounded-2xl bg-white/35 px-4 py-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Monthly Production</p>
+          <p className="data-readout mt-1 text-xl font-black text-slate-950">
+            {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-xs">kWh</span>
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white/35 px-4 py-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Monthly Load</p>
+          <p className="data-readout mt-1 text-xl font-black text-slate-950">
+            {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-xs">kWh</span>
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white/35 px-4 py-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Daily Production</p>
+          <p className="data-readout mt-1 text-xl font-black text-slate-950">
+            {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-xs">kWh</span>
+          </p>
+        </div>
+        <div className="rounded-2xl bg-white/35 px-4 py-3">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Weather</p>
+          <p className="data-readout mt-1 flex items-center gap-1 text-xl font-black text-slate-950">
+            <CloudSun className="h-4 w-4" /> 33 <span className="text-xs">°C</span>
+          </p>
         </div>
       </div>
       <div className="mt-4 grid gap-3 rounded-3xl border border-white/55 bg-white/45 p-4 backdrop-blur lg:hidden">
