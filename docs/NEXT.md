@@ -77,9 +77,15 @@ https://monitor-solar-inverter-deye-battery.vercel.app
 
 ## §3 Health checks (ครั้งหน้ามาเช็ค pipeline)
 
-ถ้าการ์ด CCTV ขึ้น "Awaiting Tapo stream" หรือ "Stream offline" — เช็คเรียงนี้:
+ถ้าการ์ด CCTV ขึ้น "Awaiting Tapo stream" หรือ "Stream offline" — รัน script เดียวจบ:
 
-### บน Mac mini บ้าน (เปิด terminal)
+```bash
+bash scripts/cctv-health.sh
+```
+
+Script จะเช็ค 4 ชั้น (camera RTSP, go2rtc, tailscale+funnel, external HTTPS+segment download) + บอกคำสั่งแก้ถ้า fail
+
+### Manual checks (ถ้าต้อง dig deeper)
 
 ```bash
 # 1. go2rtc รันอยู่?
@@ -116,7 +122,6 @@ launchctl kickstart -k gui/$UID/com.tailscale.tailscaled
 ## §4 Future enhancements (ไม่เร่ง)
 
 - [ ] เพิ่ม **basic auth** ใน go2rtc config (`auth: "viewer:..."`) — กัน public ดู stream
-- [ ] เพิ่ม `NEXT_PUBLIC_CCTV_HLS_URL` ใน Vercel **Preview** environment (CLI v51 quirk — ทำผ่าน Vercel dashboard UI หรือใช้ Vercel REST API)
 - [ ] WebRTC mode ใน go2rtc (latency <1s แทน HLS 5–10s)
 - [ ] Add second camera — เพิ่ม `tapo2:` ใน go2rtc.yaml + การ์ดที่ 2 ในหน้า dashboard
 - [ ] Tailscale ACL: lock funnel ให้แค่ `home-macmini` host (ไม่ใช่ทั้ง user)
@@ -132,7 +137,7 @@ launchctl kickstart -k gui/$UID/com.tailscale.tailscaled
 |---|---|---|---|
 | `DEYE_*` | ✅ | — | — |
 | `WEATHER_LAT/LON` | (default ใน code) | — | — |
-| `NEXT_PUBLIC_CCTV_HLS_URL` | ✅ | ✅ | ❌ TODO |
+| `NEXT_PUBLIC_CCTV_HLS_URL` | ✅ | ✅ | ✅ |
 
 **Network (บ้าน):**
 - Camera IP: `192.168.1.159` (Tapo, Static)
