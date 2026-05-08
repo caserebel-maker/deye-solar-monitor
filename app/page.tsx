@@ -21,6 +21,7 @@ import {
   BatteryCharging,
   BatteryFull,
   CalendarDays,
+  Camera,
   ChartSpline,
   CloudSun,
   CloudOff,
@@ -405,8 +406,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="energy-flow-canvas mt-3 h-[500px] w-full rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.25/1] lg:min-h-80">
-        <svg viewBox="0 0 620 500" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
+      <div className="energy-flow-canvas relative mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.55/1] lg:min-h-[470px]">
+        <svg viewBox="0 0 620 500" className="hidden h-full w-[72%] lg:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -444,6 +445,37 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
             tone="text-blue-500"
           />
         </svg>
+        <div className="absolute bottom-5 right-5 hidden w-[25%] min-w-[220px] rounded-3xl border border-white/55 bg-white/50 p-4 shadow-2xl backdrop-blur-xl lg:block">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-500/70">Plant Summary</p>
+          <div className="mt-3 grid gap-3">
+            <div>
+              <p className="text-xs text-slate-500">Accumulative production</p>
+              <p className="data-readout mt-1 text-2xl font-black leading-none text-slate-950">
+                {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Accumulative consumption</p>
+              <p className="data-readout mt-1 text-2xl font-black leading-none text-slate-950">
+                {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 border-t border-white/55 pt-3">
+              <div>
+                <p className="text-[11px] text-slate-500">Daily Production</p>
+                <p className="data-readout mt-1 text-lg font-black text-slate-950">
+                  {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-[10px]">kWh</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Weather</p>
+                <p className="data-readout mt-1 flex items-center gap-1 text-lg font-black text-slate-950">
+                  <CloudSun className="h-4 w-4" /> 33 <span className="text-[10px]">°C</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
         <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
             <BaseFlowPath d={mobilePaths.solarToInverter} />
@@ -476,6 +508,71 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
             tone="text-white"
           />
           <MobileFlowNode className="left-[78%] top-[84%]" label="Load" value="0 W" icon={Home} tone="text-white" />
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 rounded-3xl border border-white/55 bg-white/45 p-4 backdrop-blur lg:hidden">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-xs text-slate-500">Production</p>
+            <p className="data-readout mt-1 text-xl font-black text-slate-950">
+              {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-xs">kWh</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Consumption</p>
+            <p className="data-readout mt-1 text-xl font-black text-slate-950">
+              {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-xs">kWh</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Daily</p>
+            <p className="data-readout mt-1 text-xl font-black text-slate-950">
+              {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-xs">kWh</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Weather</p>
+            <p className="data-readout mt-1 flex items-center gap-1 text-xl font-black text-slate-950">
+              <CloudSun className="h-4 w-4" /> 33 <span className="text-xs">°C</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CctvCard() {
+  return (
+    <section className="glass premium-panel flex min-h-[470px] flex-col rounded-3xl p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">Security Feed</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo CCTV Monitor</h2>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
+          <Camera className="h-5 w-5 text-indigo-500" />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-amber-300" />
+            Awaiting Tapo stream
+          </span>
+          <span>RTSP / LAN</span>
+        </div>
+        <div className="relative flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,0.22),transparent_28rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,91,0.86))]">
+          <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,.22)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.22)_1px,transparent_1px)] [background-size:38px_38px]" />
+          <div className="relative text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-white/15 bg-white/10 text-cyan-200 shadow-2xl">
+              <Camera className="h-9 w-9" />
+            </div>
+            <p className="mt-4 text-sm font-semibold text-white">Tapo camera slot ready</p>
+            <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-white/55">
+              Prepared for a TP-Link Tapo RTSP/HLS bridge. Feed will stay server-side/proxy-safe before showing here.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -682,57 +779,12 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section className="grid gap-4 xl:grid-cols-[1.7fr_0.95fr_1.08fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
           <EnergyFlow overview={data.overview} />
+          <CctvCard />
+        </section>
 
-          <div className="grid gap-4">
-            <section className="glass premium-panel rounded-3xl p-5">
-              <h2 className="text-lg font-semibold text-slate-950">Summary</h2>
-              <div className="mt-8 grid gap-8">
-                <div className="flex items-center gap-5">
-                  <div className="rounded-3xl bg-indigo-100 p-4 text-indigo-600">
-                    <Zap className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Accumulative production</p>
-                    <p className="data-readout mt-2 text-3xl font-semibold text-slate-950">
-                      {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-sm">kWh</span>
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-5">
-                  <div className="rounded-3xl bg-blue-100 p-4 text-blue-600">
-                    <Home className="h-7 w-7" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Accumulative consumption</p>
-                    <p className="data-readout mt-2 text-3xl font-semibold text-slate-950">
-                      {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-sm">kWh</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="glass premium-panel hidden rounded-3xl p-5 sm:block">
-              <div className="grid grid-cols-2 divide-x divide-indigo-100">
-                <div className="px-2">
-                  <p className="text-sm text-slate-500">Daily Production</p>
-                  <p className="data-readout mt-3 text-3xl font-semibold text-slate-950">
-                    {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-sm">kWh</span>
-                  </p>
-                </div>
-                <div className="px-5">
-                  <p className="text-sm text-slate-500">Weather</p>
-                  <p className="data-readout mt-3 flex items-center gap-2 text-3xl font-semibold text-slate-950">
-                    <CloudSun className="h-7 w-7" />
-                    33 <span className="text-sm">°C</span>
-                  </p>
-                </div>
-              </div>
-            </section>
-          </div>
-
+        <section className="mt-4 grid gap-4">
           <section className="glass premium-panel rounded-3xl p-5" id="plant-section">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-950">Solar & Utilization</h2>
