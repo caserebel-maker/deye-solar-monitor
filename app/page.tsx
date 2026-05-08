@@ -810,7 +810,8 @@ export default function DashboardPage() {
       if (!pullActive.current) return;
       pullActive.current = false;
       if (pullDistance >= PULL_THRESHOLD) {
-        void loadData(true);
+        window.location.reload();
+        return;
       }
       setPullDistance(0);
     };
@@ -900,7 +901,12 @@ export default function DashboardPage() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold leading-none text-slate-950 sm:text-xl">725</h1>
-              <button className="rounded-full bg-white/60 p-2 text-slate-600 shadow-sm" onClick={() => loadData(true)} type="button">
+              <button
+                aria-label="Reload page"
+                className="rounded-full bg-white/60 p-2 text-slate-600 shadow-sm"
+                onClick={() => window.location.reload()}
+                type="button"
+              >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
               </button>
               <button
