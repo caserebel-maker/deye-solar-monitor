@@ -6,125 +6,165 @@
 
 ## §0 TL;DR
 
-✅ **Tapo CCTV pipeline เสร็จสมบูรณ์ + ขึ้น production แล้ว**
+✅ **Tapo CCTV pipeline + Pan/Tilt control = LIVE on production**
 
 - Live URL: https://monitor-solar-inverter-deye-battery.vercel.app/
-- HLS endpoint: https://home-macmini.tail1d5579.ts.net/api/stream.m3u8?src=tapo
-- การ์ด **Tapo CCTV Monitor** ในหน้า dashboard ดึง stream จาก Mac mini บ้านผ่าน Tailscale Funnel
+- HLS: https://home-macmini.tail1d5579.ts.net/api/stream.m3u8?src=tapo
+- PTZ proxy: https://home-macmini.tail1d5579.ts.net/control/ptz (Bearer-protected)
+- การ์ด CCTV ตอนนี้มี ↑ ↓ ← → + ปุ่มหยุด — ส่งคำสั่งผ่าน ONVIF ไปกล้อง Tapo C545D
 
-ครั้งหน้าเปิด Claude Code: ตรวจสุขภาพ pipeline ที่ §3 ก่อน (ถ้าการ์ดขึ้น offline)
+⚠️ **One known persistence gap — read §3.2 before reboot:** PTZ proxy ตอนนี้รันผ่าน
+`nohup` (Terminal session ของผม) ไม่ใช่ LaunchAgent — ถ้า Mac mini reboot จะตาย
+ต้อง start manually หรือแก้ Local Network privacy ก่อน (cmd อยู่ใน §3.2)
 
 ---
 
 ## §1 ที่ทำไปแล้ว session นี้ (Mac mini บ้าน, 2026-05-08)
+
+### ส่วน 1 — HLS streaming (✅ persistent)
 
 | ขั้นตอน | สถานะ |
 |---|---|
 | Clone repo → `/Volumes/C1TB/EB-CI/deye-solar-monitor` | ✅ |
 | ตั้ง git `user.email = caserebel@gmail.com` (Vercel team rule) | ✅ |
 | Tapo Camera Account (ทำใน Tapo app) — username `Pondsol@r1` | ✅ |
-| Verify RTSP `rtsp://...@192.168.1.159:554/stream1` ใช้ได้ | ✅ |
-| Download `go2rtc v1.9.14` darwin_arm64 → `/opt/homebrew/bin/go2rtc` | ✅ |
+| go2rtc v1.9.14 binary → `/opt/homebrew/bin/go2rtc` | ✅ |
 | Config `~/.config/go2rtc/go2rtc.yaml` (mode 600 — มี cred) | ✅ |
-| LaunchAgent `~/Library/LaunchAgents/com.go2rtc.plist` (auto-start at boot) | ✅ |
-| `brew install tailscale` (formula CLI-only, **ไม่ต้อง sudo**) | ✅ |
-| LaunchAgent `~/Library/LaunchAgents/com.tailscale.tailscaled.plist` (userspace mode + custom socket/state) | ✅ |
-| Tailscale login (caserebel@gmail.com tailnet) hostname `home-macmini` | ✅ |
-| Approve Funnel feature ใน tailnet | ✅ |
-| `tailscale funnel --bg --https=443 http://localhost:1984` (auto-cert via Let's Encrypt) | ✅ |
-| Add `NEXT_PUBLIC_CCTV_HLS_URL` ใน Vercel (Production + Development) | ✅ |
-| `vercel deploy --prod` — fresh build with env baked | ✅ |
-| Verify URL bake-in client bundle (`grep "home-macmini.*tapo" chunks`) | ✅ |
+| LaunchAgent `~/Library/LaunchAgents/com.go2rtc.plist` (auto-start) | ✅ |
+| `brew install tailscale` (formula CLI-only — ไม่ต้อง sudo) | ✅ |
+| LaunchAgent `~/Library/LaunchAgents/com.tailscale.tailscaled.plist` (userspace) | ✅ |
+| Tailscale Funnel + cert + serve mount `/` → :1984 | ✅ |
+| Vercel `NEXT_PUBLIC_CCTV_HLS_URL` (Prod + Preview + Dev) | ✅ |
+| `vercel deploy --prod` | ✅ |
 
-**Quirks สำคัญที่เจอ:**
+### ส่วน 2 — PTZ control (✅ working, ⚠️ persistence pending)
 
-1. `brew install go2rtc` ❌ formula ไม่มีแล้ว → ใช้ binary จาก GitHub release
-2. `brew install --cask tailscale-app` ❌ ต้อง sudo + kernel ext → ใช้ formula `tailscale` แทน (CLI-only, userspace networking)
-3. `tailscaled` default ต้อง root → flag `--tun=userspace-networking` + `--socket=/Users/.../tailscaled.sock` ทำให้รันเป็น user ได้
-4. Tailscale Funnel ต้อง enable feature ก่อน → URL approve อยู่ใน error message ของ `tailscale funnel`
-5. DNS ของ `*.tail1d5579.ts.net` propagate ระหว่าง DNSimple NS ไม่ sync (ns1 ช้า, ns3 เร็ว) — รอ ~5–10 นาที
-6. Vercel CLI v51 `vercel env add NAME preview` ต้อง interactive — `*` argument ใช้ไม่ได้ → preview env ยังไม่ได้ตั้ง (ไม่กระทบ live site)
+| ขั้นตอน | สถานะ |
+|---|---|
+| Verify Tapo C545D supports ONVIF (port 2020) | ✅ |
+| `uv` Python project ที่ `~/cctv-control/` (FastAPI + onvif-zeep) | ✅ |
+| `~/cctv-control/server.py` — Bearer-auth PTZ proxy on :1985 | ✅ |
+| Tailscale serve add `/control` mount → 127.0.0.1:1985 | ✅ |
+| Vercel envs `CCTV_PTZ_TOKEN` (encrypted) + `CCTV_PTZ_ENDPOINT` (plain) | ✅ |
+| `app/api/cctv/ptz/route.ts` — server-side proxy with bearer | ✅ |
+| `<CctvPtzControls>` d-pad ในการ์ด CCTV | ✅ |
+| `vercel deploy --prod` (deploy 2nd round) | ✅ |
+| **LaunchAgent ของ PTZ proxy** | ❌ blocked — ดู §3.2 |
 
 ---
 
 ## §2 Architecture ปัจจุบัน
 
 ```
-Tapo C-series (192.168.1.159, RTSP)
-  └─ rtsp://Pondsol%40r1:***@192.168.1.159:554/stream1
-       │
-       ▼  (LAN)
-Mac mini บ้าน (PondM2pros-Mac-mini, 192.168.1.136)
-  • go2rtc :1984 (LaunchAgent com.go2rtc, KeepAlive)
-  • tailscaled userspace + socket=/Users/pondm1/.tailscale/tailscaled.sock
-  • tailscale funnel --https=443 → http://localhost:1984
-       │
-       ▼  (Tailscale Funnel — public HTTPS via Let's Encrypt)
-https://home-macmini.tail1d5579.ts.net
-  └─ /api/stream.m3u8?src=tapo
-       │
-       ▼  (Vercel build — NEXT_PUBLIC baked at build time)
-https://monitor-solar-inverter-deye-battery.vercel.app
-  └─ <CctvCard> → <CctvLivePlayer> hls.js → <video>
-```
-
-**Stream specs (verified from m3u8 head):**
-- BANDWIDTH: 192000
-- CODECS: avc1.640029 (H.264 High Profile L4.1)
-- DERP relay: Singapore (~39ms RTT)
-
----
-
-## §3 Health checks (ครั้งหน้ามาเช็ค pipeline)
-
-ถ้าการ์ด CCTV ขึ้น "Awaiting Tapo stream" หรือ "Stream offline" — รัน script เดียวจบ:
-
-```bash
-bash scripts/cctv-health.sh
-```
-
-Script จะเช็ค 4 ชั้น (camera RTSP, go2rtc, tailscale+funnel, external HTTPS+segment download) + บอกคำสั่งแก้ถ้า fail
-
-### Manual checks (ถ้าต้อง dig deeper)
-
-```bash
-# 1. go2rtc รันอยู่?
-launchctl list | grep go2rtc
-curl -s http://localhost:1984/api/streams | head
-
-# 2. tailscaled + funnel ออน?
-launchctl list | grep tailscaled
-/opt/homebrew/opt/tailscale/bin/tailscale --socket=/Users/pondm1/.tailscale/tailscaled.sock status
-/opt/homebrew/opt/tailscale/bin/tailscale --socket=/Users/pondm1/.tailscale/tailscaled.sock serve status
-
-# 3. กล้อง LAN reachable?
-nc -zv 192.168.1.159 554
-
-# 4. external HTTPS endpoint?
-curl -sI "https://home-macmini.tail1d5579.ts.net/api/stream.m3u8?src=tapo"
-```
-
-### Restart commands
-
-```bash
-# Restart go2rtc
-launchctl kickstart -k gui/$UID/com.go2rtc
-
-# Restart tailscaled
-launchctl kickstart -k gui/$UID/com.tailscale.tailscaled
-
-# Re-enable funnel ถ้า serve config หาย
-/opt/homebrew/opt/tailscale/bin/tailscale --socket=/Users/pondm1/.tailscale/tailscaled.sock funnel --bg --https=443 http://localhost:1984
+                      ┌─────────────────────────────┐
+                      │   Tapo C545D (192.168.1.159)│
+                      │   • RTSP /stream1, /stream2 │
+                      │   • ONVIF :2020 (PTZ)       │
+                      └──────────────┬──────────────┘
+                                     │ LAN
+                ┌────────────────────┴────────────────────┐
+                │  Mac mini บ้าน (192.168.1.136)           │
+                │                                         │
+                │  go2rtc :1984  ── LaunchAgent           │
+                │   └─ rtsp ↔ HLS                         │
+                │                                         │
+                │  PTZ proxy :1985 ── nohup (TODO: agent) │
+                │   └─ FastAPI + onvif-zeep + bearer auth │
+                │                                         │
+                │  tailscaled (userspace) ── LaunchAgent  │
+                │   └─ funnel:                            │
+                │      /        → localhost:1984          │
+                │      /control → 127.0.0.1:1985          │
+                └──────────────────┬──────────────────────┘
+                                   │ Tailscale Funnel (HTTPS, Let's Encrypt)
+                                   ▼
+                  https://home-macmini.tail1d5579.ts.net
+                       │                       │
+                       ▼ /api/stream.m3u8      ▼ /control/ptz (Bearer)
+                       │                       │
+                       └───────┬───────────────┘
+                               │
+                  ┌────────────▼─────────────────┐
+                  │ Vercel app (NEXT_PUBLIC_*)   │
+                  │  • <CctvLivePlayer> + hls.js │
+                  │  • POST /api/cctv/ptz        │
+                  │     (token from server env)  │
+                  └────────────┬─────────────────┘
+                               ▼
+                Browser ← user คุมกล้องได้
 ```
 
 ---
 
-## §4 Future enhancements (ไม่เร่ง)
+## §3 Health checks + known issues
 
-- [ ] เพิ่ม **basic auth** ใน go2rtc config (`auth: "viewer:..."`) — กัน public ดู stream
+### §3.1 Health-check (รันก่อนทุกอย่าง)
+
+```bash
+cd /Volumes/C1TB/EB-CI/deye-solar-monitor && bash scripts/cctv-health.sh
+```
+
+เช็ค 5 ชั้น (camera, go2rtc, tailscale+funnel, PTZ proxy, external HTTPS) + บอกคำสั่งแก้ทุก fail
+
+### §3.2 ⚠️ PTZ proxy persistence — **ต้องแก้ก่อน reboot ครั้งหน้า**
+
+**ปัญหา:** macOS Tahoe (15.x+) มี **Local Network privacy** ที่ block process ที่ launchd
+เปิดเอง (LaunchAgent) จากการเข้าถึง 192.168.x.x ผลคือ `tailscaled` + `go2rtc` ผ่านได้
+(approve ตอน first run จาก Terminal) แต่ Python ใหม่ใน venv ไม่ inherit permission
+
+**Workaround ปัจจุบัน:** PTZ proxy รันผ่าน `nohup` จาก shell ตอนนี้ (PID detach)
+อยู่จน Mac mini reboot
+
+**Permanent fix — เลือก 1 อันต่อไปนี้:**
+
+A. **เพิ่ม Python ใน Local Network privacy manually** (ง่ายสุด):
+1. เปิด System Settings → Privacy & Security → Local Network
+2. เลื่อนหา `python3` หรือ `uv` หรือ binary ใน `~/cctv-control/.venv/bin/python`
+3. ติ๊ก ✓ → save
+4. `launchctl load -w ~/Library/LaunchAgents/com.ebci.cctv-ptz.plist`
+
+B. **LaunchDaemon (system-level, root)** — ต้อง sudo password:
+```bash
+sudo cp ~/Library/LaunchAgents/com.ebci.cctv-ptz.plist /Library/LaunchDaemons/
+sudo chown root:wheel /Library/LaunchDaemons/com.ebci.cctv-ptz.plist
+sudo launchctl load /Library/LaunchDaemons/com.ebci.cctv-ptz.plist
+launchctl unload ~/Library/LaunchAgents/com.ebci.cctv-ptz.plist
+```
+
+C. **ทุกครั้งหลัง reboot รันใน terminal:**
+```bash
+cd ~/cctv-control && set -a; source .env; set +a && \
+  nohup uv run uvicorn server:app --host 127.0.0.1 --port 1985 \
+  > /tmp/cctv-ptz.log 2>&1 & disown
+```
+
+### §3.3 Manual deep-dive
+
+```bash
+# PTZ test (จาก local — bypass Funnel + bearer)
+curl -s -X POST http://localhost:1985/ptz \
+  -H 'Authorization: Bearer fFA0YNgJXicSmk5iqQkt1JyB77j0-pfVIbJrFZovzQc' \
+  -H 'content-type: application/json' \
+  -d '{"direction":"right","duration_ms":300}'
+
+# PTZ test (จาก public internet — ผ่าน Vercel API route + Funnel)
+curl -s -X POST https://monitor-solar-inverter-deye-battery.vercel.app/api/cctv/ptz \
+  -H 'content-type: application/json' \
+  -d '{"direction":"left","duration_ms":300}'
+```
+
+---
+
+## §4 Future enhancements
+
+- [ ] **Persist PTZ proxy** (ดู §3.2)
+- [ ] **Basic auth บน dashboard** — ตอนนี้ public anyone with URL กด PTZ ได้
+  - แนะนำ: NextAuth + Google OAuth (เฉพาะ caserebel@gmail.com / pondsuriya20@gmail.com)
+- [ ] **Rate limit** บน `/api/cctv/ptz` — กัน flood spam
+- [ ] **ONVIF Presets** — บันทึก preset positions (Home, Gate, Carport) + ปุ่ม jump
+- [ ] **Velocity slider** — ปรับ speed PTZ ได้
 - [ ] WebRTC mode ใน go2rtc (latency <1s แทน HLS 5–10s)
-- [ ] Add second camera — เพิ่ม `tapo2:` ใน go2rtc.yaml + การ์ดที่ 2 ในหน้า dashboard
-- [ ] Tailscale ACL: lock funnel ให้แค่ `home-macmini` host (ไม่ใช่ทั้ง user)
+- [ ] go2rtc basic auth (`auth: "viewer:..."`) — กัน public ดู stream
 
 ---
 
@@ -133,28 +173,30 @@ launchctl kickstart -k gui/$UID/com.tailscale.tailscaled
 **Vercel project:** `monitor-solar-inverter-deye-battery-web` (id `prj_4Iua8s4gmeaGU7AplwkWixTvvIll`)
 **Vercel team:** `suriyas-projects-d1b3e6b3` (caserebel@gmail.com — git author rule)
 
-| Env | Prod | Dev | Preview |
-|---|---|---|---|
-| `DEYE_*` | ✅ | — | — |
-| `WEATHER_LAT/LON` | (default ใน code) | — | — |
-| `NEXT_PUBLIC_CCTV_HLS_URL` | ✅ | ✅ | ✅ |
+| Env | Type | Prod | Preview | Dev |
+|---|---|---|---|---|
+| `DEYE_*` | encrypted | ✅ | — | — |
+| `NEXT_PUBLIC_CCTV_HLS_URL` | plain (public) | ✅ | ✅ | ✅ |
+| `CCTV_PTZ_ENDPOINT` | plain (server-only) | ✅ | ✅ | ✅ |
+| `CCTV_PTZ_TOKEN` | encrypted (server-only) | ✅ | ✅ | ✅ |
 
 **Network (บ้าน):**
-- Camera IP: `192.168.1.159` (Tapo, Static)
+- Camera IP: `192.168.1.159` (Tapo C545D, FW 1.1.5, Static)
 - Mac mini IP: `192.168.1.136` (PondM2pros-Mac-mini)
 - Gateway: `192.168.1.1`
-- Tailscale node: `home-macmini` (100.97.45.25, fd7a:115c:a1e0::633b:2d19)
+- Tailscale node: `home-macmini` (100.97.45.25)
 - Tailnet: `tail1d5579.ts.net`
+- DERP: Singapore (~39ms)
 
 **Local files (มี cred — ห้าม commit):**
-- `~/.config/go2rtc/go2rtc.yaml` (mode 600, RTSP creds)
-- `~/.tailscale/tailscaled.sock` + state files
-- `home-macmini.tail1d5579.ts.net.{crt,key}` (Let's Encrypt cert จาก `tailscale cert`)
+- `~/.config/go2rtc/go2rtc.yaml` (mode 600)
+- `~/cctv-control/.env` (CCTV_PTZ_TOKEN + CAMERA_PASS)
+- `~/.tailscale/tailscaled.sock` + state
+- Cert/key Tailscale Funnel
 
 ---
 
 ## §6 Git state
 
-- Last commit ก่อน session นี้: `99af4e8` — docs(handoff): add NEXT.md
-- Branch: `main` (no worktree branches)
 - Push pattern: `git push origin main` (direct push)
+- Branch: `main`

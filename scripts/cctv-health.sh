@@ -2,16 +2,18 @@
 # CCTV pipeline health check — รันบน Mac mini บ้าน
 # ใช้: bash scripts/cctv-health.sh
 #
-# เช็ค 4 ชั้น:
+# เช็ค 5 ชั้น:
 #   1. กล้อง Tapo บน LAN (port 554)
 #   2. go2rtc local (port 1984)
 #   3. tailscaled + funnel
-#   4. external HTTPS endpoint + segment download
+#   4. PTZ proxy local (port 1985, Python FastAPI)
+#   5. external HTTPS endpoints (HLS + PTZ via Funnel)
 
 set -u
 
 CAMERA_IP="${CAMERA_IP:-192.168.1.159}"
 GO2RTC_PORT="${GO2RTC_PORT:-1984}"
+PTZ_PORT="${PTZ_PORT:-1985}"
 FUNNEL_HOST="${FUNNEL_HOST:-home-macmini.tail1d5579.ts.net}"
 TS_BIN="/opt/homebrew/opt/tailscale/bin/tailscale"
 TS_SOCK="/Users/${USER}/.tailscale/tailscaled.sock"
@@ -29,7 +31,7 @@ echo "═══ CCTV pipeline health check ═══"
 echo
 
 # 1. Camera RTSP port
-echo "[1/4] Tapo camera ($CAMERA_IP:554)"
+echo "[1/5] Tapo camera ($CAMERA_IP:554)"
 if nc -zv -G 2 "$CAMERA_IP" 554 >/dev/null 2>&1; then
   ok "RTSP port 554 reachable"
 else
@@ -38,7 +40,7 @@ fi
 echo
 
 # 2. go2rtc
-echo "[2/4] go2rtc (localhost:$GO2RTC_PORT)"
+echo "[2/5] go2rtc (localhost:$GO2RTC_PORT)"
 if launchctl list 2>/dev/null | grep -q com.go2rtc; then
   ok "LaunchAgent loaded"
 else
@@ -52,7 +54,7 @@ fi
 echo
 
 # 3. Tailscale + funnel
-echo "[3/4] Tailscale ($FUNNEL_HOST)"
+echo "[3/5] Tailscale ($FUNNEL_HOST)"
 if launchctl list 2>/dev/null | grep -q com.tailscale.tailscaled; then
   ok "tailscaled LaunchAgent loaded"
 else
@@ -70,8 +72,18 @@ else
 fi
 echo
 
-# 4. External HTTPS pipeline
-echo "[4/4] External HTTPS endpoint"
+# 4. PTZ proxy (Python FastAPI on :1985)
+echo "[4/5] PTZ proxy (localhost:$PTZ_PORT)"
+if curl -s -m 3 "http://localhost:$PTZ_PORT/healthz" 2>/dev/null | grep -q '"ok":true'; then
+  ok "PTZ proxy responding + camera connected"
+else
+  bad "PTZ proxy down — restart from terminal:"
+  echo "       cd ~/cctv-control && set -a; source .env; set +a && nohup uv run uvicorn server:app --host 127.0.0.1 --port $PTZ_PORT >/tmp/cctv-ptz.log 2>&1 & disown"
+fi
+echo
+
+# 5. External HTTPS pipeline
+echo "[5/5] External HTTPS endpoint"
 M3U8="https://$FUNNEL_HOST/api/stream.m3u8?src=tapo"
 if HEAD=$(curl -sI -m 10 "$M3U8" 2>/dev/null) && echo "$HEAD" | head -1 | grep -q "200"; then
   ok "master m3u8 returns 200 OK"
@@ -90,6 +102,13 @@ if [ -n "$ID" ]; then
   fi
 else
   bad "could not extract session id from master playlist"
+fi
+# PTZ proxy via Funnel
+PTZ_HEALTH=$(curl -s -m 5 "https://$FUNNEL_HOST/control/healthz" 2>/dev/null)
+if echo "$PTZ_HEALTH" | grep -q '"ok":true'; then
+  ok "PTZ proxy reachable through Funnel"
+else
+  bad "PTZ proxy not reachable through Funnel — check Tailscale serve mount /control"
 fi
 echo
 
