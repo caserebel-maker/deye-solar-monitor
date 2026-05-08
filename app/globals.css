@@ -161,10 +161,6 @@ select {
   animation: flow 1.75s linear infinite;
 }
 
-.mobile-flow-dot {
-  filter: drop-shadow(0 0 10px rgba(59, 130, 246, 0.78));
-}
-
 .mobile-flow-node {
   text-shadow: 0 2px 12px rgba(2, 6, 23, 0.32);
 }
@@ -387,10 +383,3 @@ select {
   color: rgba(71, 85, 105, 0.86);
 }
 
-.light-dashboard .mobile-active-flow-line {
-  stroke: rgba(79, 70, 229, 0.78);
-}
-
-.light-dashboard .mobile-flow-dot {
-  filter: drop-shadow(0 0 9px rgba(99, 102, 241, 0.54));
-}

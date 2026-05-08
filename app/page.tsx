@@ -313,35 +313,6 @@ function BaseFlowPath({ d }: { d: string }) {
   );
 }
 
-function MobileActiveFlowPath({
-  d,
-  value,
-  delay,
-}: {
-  d: string;
-  value: number;
-  delay: string;
-}) {
-  if (value <= 0.005) return null;
-
-  return (
-    <>
-      <path
-        d={d}
-        stroke="rgba(248, 250, 252, 0.9)"
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-        className="mobile-active-flow-line"
-      />
-      <circle r="5.2" fill="#3b82f6" stroke="#8bb8ff" strokeWidth="2.1" className="mobile-flow-dot">
-        <animateMotion dur="1.9s" begin={delay} repeatCount="indefinite" path={d} />
-      </circle>
-    </>
-  );
-}
-
 function MobileFlowNode({
   className,
   label,
@@ -464,15 +435,17 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
         </svg>
         <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
-            <BaseFlowPath d={mobilePaths.solarToInverter} />
-            <BaseFlowPath d={mobilePaths.batteryToInverter} />
-            <BaseFlowPath d={mobilePaths.gridToInverter} />
-            <BaseFlowPath d={mobilePaths.inverterToUps} />
+            {solarToInverter <= 0.005 && <BaseFlowPath d={mobilePaths.solarToInverter} />}
+            {batteryToInverter <= 0.005 && inverterToBattery <= 0.005 && <BaseFlowPath d={mobilePaths.batteryToInverter} />}
+            {gridToInverter <= 0.005 && inverterToGrid <= 0.005 && <BaseFlowPath d={mobilePaths.gridToInverter} />}
             <BaseFlowPath d={mobilePaths.inverterToLoad} />
-            <MobileActiveFlowPath d={mobilePaths.solarToInverter} value={solarToInverter} delay="0s" />
-            <MobileActiveFlowPath d={batteryToInverter > 0.005 ? mobilePaths.batteryToInverter : mobilePaths.inverterToBattery} value={Math.max(batteryToInverter, inverterToBattery)} delay="-0.45s" />
-            <MobileActiveFlowPath d={gridToInverter > 0.005 ? mobilePaths.gridToInverter : mobilePaths.inverterToGrid} value={Math.max(gridToInverter, inverterToGrid)} delay="-0.9s" />
-            <MobileActiveFlowPath d={mobilePaths.inverterToUps} value={inverterToUps} delay="-1.25s" />
+            {inverterToUps <= 0.005 && <BaseFlowPath d={mobilePaths.inverterToUps} />}
+            <FlowPath d={mobilePaths.solarToInverter} value={solarToInverter} color="#fbbf24" delay="0s" />
+            <FlowPath d={mobilePaths.batteryToInverter} value={batteryToInverter} color="#fbbf24" delay="-0.45s" />
+            <FlowPath d={mobilePaths.inverterToBattery} value={inverterToBattery} color="#10b981" delay="-0.45s" />
+            <FlowPath d={mobilePaths.gridToInverter} value={gridToInverter} color="#38bdf8" delay="-0.9s" />
+            <FlowPath d={mobilePaths.inverterToGrid} value={inverterToGrid} color="#38bdf8" delay="-0.9s" />
+            <FlowPath d={mobilePaths.inverterToUps} value={inverterToUps} color="#a78bfa" delay="-1.25s" />
           </svg>
           <MobileFlowNode className="left-[22%] top-[20%]" label="Production" value={formatCompactPower(metrics.solarKw)} icon={Sun} tone="text-white" />
           <MobileFlowNode core className="left-1/2 top-[51%]" label="" value="" icon={Cpu} tone="text-white" />
