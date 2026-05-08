@@ -486,6 +486,21 @@ function alertsToDashboard(response: DeyeStationAlerts): SolarAlarms {
   };
 }
 
+export async function getRawStationLatest(): Promise<unknown> {
+  const config = getConfig();
+  if (!hasLiveConfig(config)) {
+    return { error: "Live Deye config not set in env" };
+  }
+  try {
+    const latest = await deyePost<DeyeStationLatest>("/v1.0/station/latest", {
+      stationId: Number(config.stationId),
+    });
+    return latest;
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Deye fetch failed" };
+  }
+}
+
 export async function getSolarOverview(): Promise<SolarOverview> {
   const config = getConfig();
   if (!hasLiveConfig(config)) return mockOverview();
