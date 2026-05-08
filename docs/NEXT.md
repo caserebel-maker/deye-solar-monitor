@@ -4,157 +4,191 @@
 
 ---
 
-## §0 TL;DR
+## §0 TL;DR — เลือก 1 path เมื่อปอนด์ตื่นบ่ายๆ
 
-✅ **Tapo CCTV pipeline + Pan/Tilt control = LIVE + persistent**
+🚧 **Pipeline ทำงานแล้วทุกชั้น** — แต่ค้นพบว่า **Tapo C545D เป็น dual-lens จริง**:
 
-- Live URL: https://monitor-solar-inverter-deye-battery.vercel.app/
-- HLS: https://home-macmini.tail1d5579.ts.net/api/stream.m3u8?src=tapo
-- PTZ proxy: https://home-macmini.tail1d5579.ts.net/control/ptz (Bearer-protected)
-- การ์ด CCTV มี ↑ ↓ ← → + ปุ่มหยุด — ส่งคำสั่งผ่าน ONVIF ไปกล้อง Tapo C545D
-- ทุก daemon (go2rtc, tailscaled, PTZ proxy) อยู่ใน LaunchAgent → auto-restart หลัง reboot
+| Lens | Stream ผ่าน RTSP/ONVIF | PTZ control |
+|---|---|---|
+| **A** — close-up basket (fixed) | ✅ ใช้อยู่ตอนนี้ | ❌ ไม่ขยับ |
+| **B** — wide outdoor (motorized) | ❌ KLAP-encrypted (Tapo proprietary) | ✅ ขยับเมื่อกดปุ่ม |
+
+ปัจจุบัน dashboard แสดง stream ของ **Lens A** + ปุ่ม PTZ ส่งคำสั่งไปขยับ **Lens B** (เห็นใน Tapo app เท่านั้น) → คนใช้งานสับสน
+
+**4 paths ให้เลือก** — รายละเอียดใน §3 — แนะนำลอง **A → C** ตามลำดับ:
+
+- **A.** ใช้ pytapo bridge stream Lens B ผ่าน KLAP (รอ cool-down 30 min)
+- **B.** ปล่อย state ปัจจุบัน (toggle Lens 1/Lens 2 ที่ confused)
+- **C.** Single-lens + relabel PTZ ให้ honest ✅ **patch พร้อม merge บน branch `path-c/single-lens-with-relabel`**
+- **D.** ติดกล้องตัวที่ 2 (Tapo C200/C210 fixed outdoor) — ใช้ RTSP standard
 
 ---
 
-## §1 ที่ทำไปแล้ว session นี้ (Mac mini บ้าน, 2026-05-08)
+## §1 ที่ทำไปแล้ว session นี้ (Mac mini บ้าน)
 
 ### ส่วน 1 — HLS streaming (✅ persistent)
 
 | ขั้นตอน | สถานะ |
 |---|---|
-| Clone repo → `/Volumes/C1TB/EB-CI/deye-solar-monitor` | ✅ |
-| ตั้ง git `user.email = caserebel@gmail.com` (Vercel team rule) | ✅ |
-| Tapo Camera Account (ทำใน Tapo app) — username `Pondsol@r1` | ✅ |
-| go2rtc v1.9.14 binary → `/opt/homebrew/bin/go2rtc` | ✅ |
-| Config `~/.config/go2rtc/go2rtc.yaml` (mode 600 — มี cred) | ✅ |
-| LaunchAgent `~/Library/LaunchAgents/com.go2rtc.plist` (auto-start) | ✅ |
-| `brew install tailscale` (formula CLI-only — ไม่ต้อง sudo) | ✅ |
-| LaunchAgent `~/Library/LaunchAgents/com.tailscale.tailscaled.plist` (userspace) | ✅ |
-| Tailscale Funnel + cert + serve mount `/` → :1984 | ✅ |
-| Vercel `NEXT_PUBLIC_CCTV_HLS_URL` (Prod + Preview + Dev) | ✅ |
-| `vercel deploy --prod` | ✅ |
+| go2rtc + LaunchAgent | ✅ |
+| Tailscale Funnel + LaunchAgent (userspace) | ✅ |
+| Vercel `NEXT_PUBLIC_CCTV_HLS_URL` ครบ 3 envs | ✅ |
+| Production deploy | ✅ |
+| hls.js auto-reconnect on fatal errors | ✅ |
+| Force `.play()` on MANIFEST_PARSED (Brave autoplay) | ✅ |
 
-### ส่วน 2 — PTZ control (✅ working + persistent)
+### ส่วน 2 — PTZ control (✅ ขยับ Lens B จริง)
 
 | ขั้นตอน | สถานะ |
 |---|---|
-| Verify Tapo C545D supports ONVIF (port 2020) | ✅ |
-| `uv` Python project ที่ `~/cctv-control/` (FastAPI + onvif-zeep) | ✅ |
-| `~/cctv-control/server.py` — Bearer-auth PTZ proxy on :1985 | ✅ |
-| Tailscale serve add `/control` mount → 127.0.0.1:1985 | ✅ |
+| ONVIF probe (port 2020) | ✅ |
+| `~/cctv-control` Python project (FastAPI + onvif-zeep) | ✅ |
+| PTZ proxy `:1985` + LaunchAgent (ProcessType=Interactive) | ✅ |
+| Tailscale serve mount `/control` → :1985 | ✅ |
 | Vercel envs `CCTV_PTZ_TOKEN` (encrypted) + `CCTV_PTZ_ENDPOINT` (plain) | ✅ |
-| `app/api/cctv/ptz/route.ts` — server-side proxy with bearer | ✅ |
-| `<CctvPtzControls>` d-pad ในการ์ด CCTV | ✅ |
-| `vercel deploy --prod` | ✅ |
-| LaunchAgent `com.ebci.cctv-ptz` (ProcessType=Interactive + Aqua) | ✅ |
-| **Note:** rotate token แล้ว 1 ครั้ง — token เก่าใน git history ใช้ไม่ได้ | ✅ |
+| `app/api/cctv/ptz/route.ts` server-side bearer proxy | ✅ |
+| `<CctvPtzControls>` d-pad ในการ์ด | ✅ |
+
+### ส่วน 3 — Weather forecast
+
+| ขั้นตอน | สถานะ |
+|---|---|
+| Add `is_day` flag → Moon icons ตอนกลางคืน | ✅ |
+
+### ส่วน 4 — Lens toggle (deployed but misleading)
+
+| ขั้นตอน | สถานะ |
+|---|---|
+| Lens 1/Lens 2 toggle in CctvCard | ⚠️ deployed but `tapo` and `tapo_sd` are HD/SD ของ Lens A เดียวกัน |
+| Lens 2 ภาพไม่ขึ้นจริงๆ (= แค่ SD ของ Lens A; user รายงานว่าไม่มีภาพ) | ⚠️ |
 
 ---
 
 ## §2 Architecture ปัจจุบัน
 
 ```
-                      ┌─────────────────────────────┐
-                      │   Tapo C545D (192.168.1.159)│
-                      │   • RTSP /stream1, /stream2 │
-                      │   • ONVIF :2020 (PTZ)       │
-                      └──────────────┬──────────────┘
+                      ┌───────────────────────────────────────────┐
+                      │   Tapo C545D (192.168.1.159, dual-lens)    │
+                      │   • Lens A (fixed)  → RTSP /stream1,/stream2 │
+                      │   • Lens B (PTZ)    → Tapo KLAP only        │
+                      │   • ONVIF :2020 PTZ controls Lens B         │
+                      └──────────────┬─────────────────────────────┘
                                      │ LAN
                 ┌────────────────────┴────────────────────┐
-                │  Mac mini บ้าน (192.168.1.136)           │
-                │                                         │
-                │  go2rtc :1984  ── LaunchAgent           │
-                │   └─ rtsp ↔ HLS                         │
-                │                                         │
-                │  PTZ proxy :1985 ── nohup (TODO: agent) │
-                │   └─ FastAPI + onvif-zeep + bearer auth │
-                │                                         │
-                │  tailscaled (userspace) ── LaunchAgent  │
-                │   └─ funnel:                            │
-                │      /        → localhost:1984          │
-                │      /control → 127.0.0.1:1985          │
-                └──────────────────┬──────────────────────┘
-                                   │ Tailscale Funnel (HTTPS, Let's Encrypt)
+                │  Mac mini บ้าน (192.168.1.136)            │
+                │  go2rtc :1984 (LaunchAgent)              │
+                │   └─ tapo, tapo_sd (both = Lens A)       │
+                │  PTZ proxy :1985 (LaunchAgent)           │
+                │   └─ ONVIF ContinuousMove + Stop         │
+                │  tailscaled userspace (LaunchAgent)      │
+                │   └─ funnel:                             │
+                │      /        → :1984                    │
+                │      /control → :1985                    │
+                └──────────────────┬───────────────────────┘
+                                   │ Funnel HTTPS
                                    ▼
                   https://home-macmini.tail1d5579.ts.net
                        │                       │
                        ▼ /api/stream.m3u8      ▼ /control/ptz (Bearer)
                        │                       │
-                       └───────┬───────────────┘
-                               │
-                  ┌────────────▼─────────────────┐
-                  │ Vercel app (NEXT_PUBLIC_*)   │
-                  │  • <CctvLivePlayer> + hls.js │
-                  │  • POST /api/cctv/ptz        │
-                  │     (token from server env)  │
-                  └────────────┬─────────────────┘
-                               ▼
-                Browser ← user คุมกล้องได้
+                  ┌────┴───────────────────────┴────┐
+                  │ Vercel app (NEXT_PUBLIC_*)      │
+                  │  • <CctvLivePlayer> + hls.js    │
+                  │  • POST /api/cctv/ptz           │
+                  └─────────────┬───────────────────┘
+                                ▼
+                Browser (Lens A view + PTZ ขยับ Lens B)
 ```
 
 ---
 
-## §3 Health checks + known issues
+## §3 Decision paths (ตอนตื่นเลือก 1 อัน)
 
-### §3.1 Health-check (รันก่อนทุกอย่าง)
+### §3.1 Path A — pytapo bridge to Lens B over KLAP
+
+**สถานะ:** กล้องใน cool-down (30 min) จาก probe ก่อนหน้า — ปลอดภัย retry **หลัง 02:01 AM** (Bangkok time)
+
+**ทดสอบ:**
+```bash
+cd ~/cctv-control && uv run python probe_klap.py
+```
+
+Script ลอง credential 5 variants:
+1. cloud email + cloud pass
+2. cloud user (no @gmail) + cloud pass
+3. admin + cloud pass
+4. admin + camera pass
+5. camera account
+
+**ถ้า success:**
+- Output มี `t.getStreamUrl(2)` หรือ `getCamera2Stream()` → URL ที่ใช้ได้
+- Add ใน `~/.config/go2rtc/go2rtc.yaml`:
+  ```yaml
+  streams:
+    tapo: <url ของ lens A เดิม>
+    tapo_lens_b: <url จาก probe>
+  ```
+- `launchctl kickstart -k gui/$UID/com.go2rtc`
+- Update Vercel env `NEXT_PUBLIC_CCTV_HLS_URL` ให้ `?src=tapo_lens_b`
+- redeploy
+
+**ถ้า fail (likely — C545D firmware 1.1.5 = KLAP-only):** ไป Path C
+
+### §3.2 Path B — keep current (ไม่แนะนำ)
+
+Lens 1/Lens 2 toggle ปัจจุบัน — Lens 2 ไม่มีภาพ (user รายงาน) เพราะมัน = SD ของ Lens A เดียวกัน confusing
+
+ไม่ทำอะไร = state นี้
+
+### §3.3 Path C — single lens + relabel PTZ ✅ พร้อม merge
+
+**Branch:** `path-c/single-lens-with-relabel` (commit `108ceb3`, ยังไม่ push)
+
+**Diff:** ลบ toggle, เพิ่ม caption "Lens A · close-up", PTZ panel เปลี่ยนเป็น "Pan / Tilt — Lens B" + helper "ขยับเลนส์ wide · ดู feed ใน Tapo app"
+
+**Apply:**
+```bash
+cd /Volumes/C1TB/EB-CI/deye-solar-monitor
+git checkout main
+git merge path-c/single-lens-with-relabel
+git push origin main
+vercel deploy --prod --yes
+# auto-aliased to production
+```
+
+### §3.4 Path D — เพิ่มกล้องตัวที่ 2
+
+**ติดกล้อง Tapo C200 / C210 (fixed indoor) ที่จุด outdoor:**
+- Set Camera Account → ได้ RTSP URL → add ใน `go2rtc.yaml` เป็น `tapo_outdoor:`
+- Vercel: เพิ่ม env `NEXT_PUBLIC_CCTV_HLS_URL_OUTDOOR` + UI ให้ user toggle
+- หรือ split ออกเป็น 2 cards (indoor / outdoor)
+
+ค่ากล้อง C200/C210 ~700-1200 บาท
+
+---
+
+## §4 Health checks
 
 ```bash
 cd /Volumes/C1TB/EB-CI/deye-solar-monitor && bash scripts/cctv-health.sh
 ```
 
-เช็ค 5 ชั้น (camera, go2rtc, tailscale+funnel, PTZ proxy, external HTTPS) + บอกคำสั่งแก้ทุก fail
-
-### §3.2 PTZ proxy LaunchAgent (resolved)
-
-**ปัญหาที่เคยเจอ:** macOS Tahoe (15.x+) Local Network privacy block process ที่
-launchd เปิดเองจากการเข้าถึง 192.168.x.x — `tailscaled` + `go2rtc` ผ่านได้แต่
-Python ใหม่ใน venv ไม่ inherit permission
-
-**ที่แก้ในที่สุด:** เพิ่ม `ProcessType=Interactive` +
-`LimitLoadToSessionType=[Aqua, Background, StandardIO]` ใน `com.ebci.cctv-ptz.plist`
-ทำให้ macOS treat agent เป็น GUI-session process → permission grant ได้
-
-ถ้าหายไปอีก:
-```bash
-launchctl kickstart -k gui/$UID/com.ebci.cctv-ptz
-# ถ้ายังไม่ขึ้น → tail /tmp/cctv-ptz.err ดู error
-```
-
-### §3.3 Manual deep-dive
-
-```bash
-# PTZ test (จาก local — bypass Funnel + bearer)
-# token อยู่ใน ~/cctv-control/.env (ห้าม commit token ลง git)
-TOKEN=$(grep ^CCTV_PTZ_TOKEN= ~/cctv-control/.env | cut -d= -f2)
-curl -s -X POST http://localhost:1985/ptz \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"direction":"right","duration_ms":300}'
-
-# PTZ test (จาก public internet — ผ่าน Vercel API route + Funnel)
-# ไม่ต้องใส่ token ที่นี่ — Vercel API route ใส่ให้ (server-side)
-curl -s -X POST https://monitor-solar-inverter-deye-battery.vercel.app/api/cctv/ptz \
-  -H 'content-type: application/json' \
-  -d '{"direction":"left","duration_ms":300}'
-```
+ปัจจุบัน: ALL GREEN 5/5 — ตอน user ตื่นน่าจะยังเขียวอยู่ ถ้าไม่เขียวลองรันแก้ตามคำสั่งที่ script แนะนำ
 
 ---
 
-## §4 Future enhancements
+## §5 Future enhancements (ไม่เร่ง)
 
-- [ ] **Basic auth บน dashboard** — ตอนนี้ public anyone with URL กด PTZ ได้
-  - แนะนำ: NextAuth + Google OAuth (เฉพาะ caserebel@gmail.com / pondsuriya20@gmail.com)
-- [ ] **Rate limit** บน `/api/cctv/ptz` — กัน flood spam
-- [ ] **ONVIF Presets** — บันทึก preset positions (Home, Gate, Carport) + ปุ่ม jump
-- [ ] **Velocity slider** — ปรับ speed PTZ ได้
-- [ ] WebRTC mode ใน go2rtc (latency <1s แทน HLS 5–10s)
-- [ ] go2rtc basic auth (`auth: "viewer:..."`) — กัน public ดู stream
-- [ ] go2rtc `tapo://` source — ลองอีกครั้งเมื่อ go2rtc รองรับ KLAP protocol
-  (FW Tapo C545D ใหม่ใช้ KLAP — go2rtc 1.9.14 ตอบ 401 ทุก variant ของ user/pass)
+- [ ] Basic auth บน dashboard (NextAuth + Google OAuth limited to caserebel@gmail.com / pondsuriya20@gmail.com)
+- [ ] Rate limit `/api/cctv/ptz`
+- [ ] ONVIF Presets (Home / Gate / Carport)
+- [ ] Velocity slider PTZ
+- [ ] WebRTC mode (latency <1s)
+- [ ] go2rtc basic auth (`auth: viewer:...`)
 
 ---
 
-## §5 Env vars + endpoints (stable reference)
+## §6 Env vars (stable reference)
 
 **Vercel project:** `monitor-solar-inverter-deye-battery-web` (id `prj_4Iua8s4gmeaGU7AplwkWixTvvIll`)
 **Vercel team:** `suriyas-projects-d1b3e6b3` (caserebel@gmail.com — git author rule)
@@ -162,27 +196,26 @@ curl -s -X POST https://monitor-solar-inverter-deye-battery.vercel.app/api/cctv/
 | Env | Type | Prod | Preview | Dev |
 |---|---|---|---|---|
 | `DEYE_*` | encrypted | ✅ | — | — |
-| `NEXT_PUBLIC_CCTV_HLS_URL` | plain (public) | ✅ | ✅ | ✅ |
-| `CCTV_PTZ_ENDPOINT` | plain (server-only) | ✅ | ✅ | ✅ |
-| `CCTV_PTZ_TOKEN` | encrypted (server-only) | ✅ | ✅ | ✅ |
+| `NEXT_PUBLIC_CCTV_HLS_URL` | plain | ✅ | ✅ | ✅ |
+| `CCTV_PTZ_ENDPOINT` | plain | ✅ | ✅ | ✅ |
+| `CCTV_PTZ_TOKEN` | encrypted | ✅ | ✅ | ✅ |
 
 **Network (บ้าน):**
-- Camera IP: `192.168.1.159` (Tapo C545D, FW 1.1.5, Static)
+- Camera IP: `192.168.1.159` (Tapo C545D, FW 1.1.5)
 - Mac mini IP: `192.168.1.136` (PondM2pros-Mac-mini)
-- Gateway: `192.168.1.1`
 - Tailscale node: `home-macmini` (100.97.45.25)
 - Tailnet: `tail1d5579.ts.net`
-- DERP: Singapore (~39ms)
 
 **Local files (มี cred — ห้าม commit):**
-- `~/.config/go2rtc/go2rtc.yaml` (mode 600)
-- `~/cctv-control/.env` (CCTV_PTZ_TOKEN + CAMERA_PASS)
-- `~/.tailscale/tailscaled.sock` + state
-- Cert/key Tailscale Funnel
+- `~/.config/go2rtc/go2rtc.yaml` (RTSP creds, mode 600)
+- `~/cctv-control/.env` (CCTV_PTZ_TOKEN, CAMERA_PASS, TAPO_CLOUD_PASS, mode 600)
+- `~/cctv-control/probe_klap.py` (Path A probe script)
+- `~/.tailscale/` (state files)
 
 ---
 
-## §6 Git state
+## §7 Git state
 
-- Push pattern: `git push origin main` (direct push)
-- Branch: `main`
+- Branch `main`: lens toggle deploy (commit `2c29980`) — currently aliased to production
+- Branch `path-c/single-lens-with-relabel` (commit `108ceb3`): Path C ready
+- Push pattern: `git push origin main`
