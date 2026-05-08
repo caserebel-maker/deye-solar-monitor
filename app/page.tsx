@@ -676,6 +676,9 @@ function CctvLivePlayer({ src }: { src: string }) {
     }
 
     let cancelled = false;
+    let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+    let mediaRecoveryAttempts = 0;
+
     import("hls.js").then(({ default: Hls }) => {
       if (cancelled) return;
       if (!Hls.isSupported()) {
@@ -683,19 +686,53 @@ function CctvLivePlayer({ src }: { src: string }) {
         setErrorMessage("Browser ไม่รองรับ HLS");
         return;
       }
-      const hls = new Hls({ lowLatencyMode: true, liveSyncDurationCount: 2 });
-      hls.loadSource(src);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) {
-          setStatus("error");
-          setErrorMessage(data.details ?? data.type);
-        }
-      });
+
+      const buildHls = () => {
+        const instance = new Hls({
+          lowLatencyMode: true,
+          liveSyncDurationCount: 2,
+          // Be patient with brief Funnel/RTSP hiccups before declaring fatal
+          fragLoadingMaxRetry: 6,
+          manifestLoadingMaxRetry: 6,
+          levelLoadingMaxRetry: 6,
+        });
+        instance.loadSource(src);
+        instance.attachMedia(video);
+        instance.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data.fatal) return;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            setStatus("loading");
+            setErrorMessage(null);
+            instance.startLoad();
+            return;
+          }
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveryAttempts < 2) {
+            mediaRecoveryAttempts += 1;
+            setStatus("loading");
+            setErrorMessage(null);
+            instance.recoverMediaError();
+            return;
+          }
+          // Unrecoverable — tear down and rebuild after a short backoff
+          setStatus("loading");
+          setErrorMessage(`reconnecting… (${data.details ?? data.type})`);
+          instance.destroy();
+          recoveryTimer = setTimeout(() => {
+            if (cancelled) return;
+            mediaRecoveryAttempts = 0;
+            currentHls = buildHls();
+          }, 4000);
+        });
+        return instance;
+      };
+
+      let currentHls = buildHls();
+
       const previousCleanup = cleanup;
       cleanup = () => {
         previousCleanup();
-        hls.destroy();
+        if (recoveryTimer) clearTimeout(recoveryTimer);
+        currentHls.destroy();
       };
     }).catch((err) => {
       if (cancelled) return;
