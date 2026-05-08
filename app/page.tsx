@@ -379,12 +379,12 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const gridLabel = gridToInverter > 0.005 ? "Grid Import" : inverterToGrid > 0.005 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
-    solarToInverter: "M 130 123 H 196 V 196 H 284",
-    batteryToInverter: "M 130 328 H 196 V 270 H 252",
-    inverterToBattery: "M 252 270 H 196 V 328 H 130",
-    gridToInverter: "M 490 123 H 420 V 196 H 336",
-    inverterToGrid: "M 336 196 H 420 V 123 H 490",
-    inverterToUps: "M 310 296 V 328",
+    solarToInverter: "M 90 119 V 175 Q 90 200 115 200 H 280",
+    batteryToInverter: "M 90 281 V 225 Q 90 200 115 200 H 280",
+    inverterToBattery: "M 280 200 H 115 Q 90 200 90 225 V 281",
+    gridToInverter: "M 610 119 V 175 Q 610 200 585 200 H 420",
+    inverterToGrid: "M 420 200 H 585 Q 610 200 610 175 V 119",
+    inverterToUps: "M 420 200 H 585 Q 610 200 610 225 V 281",
   };
   const mobilePaths = {
     solarToInverter: "M 104 116 H 130 Q 152 116 152 158 V 224 H 148",
@@ -407,7 +407,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
         </div>
       </div>
       <div className="energy-flow-canvas mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.75/1] lg:min-h-[420px]">
-        <svg viewBox="0 0 620 460" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 700 400" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -425,13 +425,13 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <FlowPath d={paths.gridToInverter} value={gridToInverter} delay="-0.9s" />
           <FlowPath d={paths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
           <FlowPath d={paths.inverterToUps} value={inverterToUps} delay="-1.25s" />
-          <FlowNode compact x={130} y={90} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
-          <FlowNode x={310} y={246} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-          <FlowNode compact x={310} y={367} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+          <FlowNode compact x={90} y={80} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+          <FlowNode x={350} y={200} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
+          <FlowNode compact x={610} y={320} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
             compact
-            x={130}
-            y={367}
+            x={90}
+            y={320}
             label="Battery"
             value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
             icon={BatteryFull}
@@ -439,8 +439,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           />
           <FlowNode
             compact
-            x={490}
-            y={90}
+            x={610}
+            y={80}
             label={gridLabel}
             value={formatPower(gridValue)}
             icon={PlugZap}
