@@ -379,11 +379,11 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const gridLabel = gridToInverter > 0.005 ? "Grid Import" : inverterToGrid > 0.005 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
-    solarToInverter: "M 150 138 V 190 H 310 V 192",
-    batteryToInverter: "M 150 302 V 250 H 252",
-    inverterToBattery: "M 252 250 H 150 V 302",
-    gridToInverter: "M 470 138 V 190 H 310 V 192",
-    inverterToGrid: "M 310 192 V 190 H 470 V 138",
+    solarToInverter: "M 165 138 V 190 H 310 V 192",
+    batteryToInverter: "M 165 302 V 250 H 252",
+    inverterToBattery: "M 252 250 H 165 V 302",
+    gridToInverter: "M 455 138 V 190 H 310 V 192",
+    inverterToGrid: "M 310 192 V 190 H 455 V 138",
     inverterToUps: "M 310 288 V 307",
   };
   const mobilePaths = {
@@ -425,11 +425,11 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <FlowPath d={paths.gridToInverter} value={gridToInverter} delay="-0.9s" />
           <FlowPath d={paths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
           <FlowPath d={paths.inverterToUps} value={inverterToUps} delay="-1.25s" />
-          <FlowNode x={150} y={90} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+          <FlowNode x={165} y={90} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
           <FlowNode x={310} y={240} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
           <FlowNode x={310} y={355} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
-            x={150}
+            x={165}
             y={355}
             label="Battery"
             value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
@@ -437,7 +437,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
             tone="text-cyan-500"
           />
           <FlowNode
-            x={470}
+            x={455}
             y={90}
             label={gridLabel}
             value={formatPower(gridValue)}
@@ -479,7 +479,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <MobileFlowNode className="left-[78%] top-[84%]" label="Load" value="0 W" icon={Home} tone="text-white" />
         </div>
       </div>
-      <div className="mt-3 hidden grid-cols-4 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur lg:grid">
+      <div className="mt-3 hidden grid-cols-2 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur lg:grid 2xl:grid-cols-4">
         <div className="rounded-2xl bg-white/35 px-4 py-3">
           <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Monthly Production</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">
@@ -774,7 +774,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section className="grid gap-4 xl:grid-cols-[1.45fr_1fr]">
+        <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
           <EnergyFlow overview={data.overview} />
           <CctvCard />
         </section>
