@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -540,6 +540,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
 }
 
 function CctvCard() {
+  const hlsUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL;
   return (
     <section className="glass premium-panel flex min-h-[470px] flex-col rounded-3xl p-5">
       <div className="flex items-center justify-between">
@@ -552,27 +553,130 @@ function CctvCard() {
         </div>
       </div>
       <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
-          <span className="inline-flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-amber-300" />
-            Awaiting Tapo stream
-          </span>
-          <span>RTSP / LAN</span>
-        </div>
-        <div className="relative flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,0.22),transparent_28rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,91,0.86))]">
-          <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,.22)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.22)_1px,transparent_1px)] [background-size:38px_38px]" />
-          <div className="relative text-center">
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-white/15 bg-white/10 text-cyan-200 shadow-2xl">
-              <Camera className="h-9 w-9" />
-            </div>
-            <p className="mt-4 text-sm font-semibold text-white">Tapo camera slot ready</p>
-            <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-white/55">
-              Prepared for a TP-Link Tapo RTSP/HLS bridge. Feed will stay server-side/proxy-safe before showing here.
-            </p>
-          </div>
-        </div>
+        {hlsUrl ? <CctvLivePlayer src={hlsUrl} /> : <CctvPlaceholder />}
       </div>
     </section>
+  );
+}
+
+function CctvPlaceholder() {
+  return (
+    <>
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
+        <span className="inline-flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-amber-300" />
+          Awaiting Tapo stream
+        </span>
+        <span>RTSP / LAN</span>
+      </div>
+      <div className="relative flex flex-1 items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(56,189,248,0.22),transparent_28rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,91,0.86))]">
+        <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,.22)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.22)_1px,transparent_1px)] [background-size:38px_38px]" />
+        <div className="relative text-center">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-white/15 bg-white/10 text-cyan-200 shadow-2xl">
+            <Camera className="h-9 w-9" />
+          </div>
+          <p className="mt-4 text-sm font-semibold text-white">Tapo camera slot ready</p>
+          <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-white/55">
+            Set <code className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-cyan-200">NEXT_PUBLIC_CCTV_HLS_URL</code> in env. See <code className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-cyan-200">docs/CCTV_SETUP.md</code>.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+type CctvStatus = "loading" | "live" | "error";
+
+function CctvLivePlayer({ src }: { src: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [status, setStatus] = useState<CctvStatus>("loading");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setStatus("loading");
+    setErrorMessage(null);
+
+    const handlePlaying = () => setStatus("live");
+    const handleStalled = () => setStatus("loading");
+    video.addEventListener("playing", handlePlaying);
+    video.addEventListener("stalled", handleStalled);
+
+    let cleanup = () => {
+      video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("stalled", handleStalled);
+    };
+
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = src;
+      video.play().catch(() => {});
+      return cleanup;
+    }
+
+    let cancelled = false;
+    import("hls.js").then(({ default: Hls }) => {
+      if (cancelled) return;
+      if (!Hls.isSupported()) {
+        setStatus("error");
+        setErrorMessage("Browser ไม่รองรับ HLS");
+        return;
+      }
+      const hls = new Hls({ lowLatencyMode: true, liveSyncDurationCount: 2 });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          setStatus("error");
+          setErrorMessage(data.details ?? data.type);
+        }
+      });
+      const previousCleanup = cleanup;
+      cleanup = () => {
+        previousCleanup();
+        hls.destroy();
+      };
+    }).catch((err) => {
+      if (cancelled) return;
+      setStatus("error");
+      setErrorMessage(err instanceof Error ? err.message : "Failed to load player");
+    });
+
+    return () => {
+      cancelled = true;
+      cleanup();
+    };
+  }, [src]);
+
+  return (
+    <>
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
+        <span className="inline-flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${status === "live" ? "bg-emerald-400" : status === "error" ? "bg-rose-400" : "bg-amber-300"} ${status === "live" ? "animate-pulse" : ""}`} />
+          {status === "live" ? "Live" : status === "error" ? "Stream offline" : "Connecting…"}
+        </span>
+        <span>HLS</span>
+      </div>
+      <div className="relative flex flex-1 items-center justify-center bg-slate-950">
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          controls
+          className="h-full w-full bg-black object-contain"
+        />
+        {status === "error" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
+            <Camera className="h-9 w-9 text-rose-300" />
+            <p className="mt-3 text-sm font-semibold text-white">Stream offline</p>
+            {errorMessage && <p className="mt-1 max-w-xs text-xs text-white/60">{errorMessage}</p>}
+            <p className="mt-2 max-w-xs text-[11px] text-white/45">เช็ค go2rtc + Tailscale Funnel ที่บ้าน — ดู docs/CCTV_SETUP.md</p>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
