@@ -271,17 +271,29 @@ function FlowNode({
   );
 }
 
-function FlowPath({ d, value, delay = "0s" }: { d: string; value: number; delay?: string }) {
+function FlowPath({
+  d,
+  value,
+  color,
+  delay = "0s",
+}: {
+  d: string;
+  value: number;
+  color: string;
+  delay?: string;
+}) {
   if (value <= 0.005) return null;
   return (
-    <>
-      <circle r="5" fill="#3b82f6" className="flow-pulse-dot">
-        <animateMotion dur="1.9s" begin={delay} repeatCount="indefinite" path={d} />
-      </circle>
-      <circle r="2.5" fill="#ffffff" opacity="0.85">
-        <animateMotion dur="1.9s" begin={delay} repeatCount="indefinite" path={d} />
-      </circle>
-    </>
+    <path
+      d={d}
+      stroke={color}
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none"
+      className="flow-line"
+      style={{ animationDelay: delay, filter: `drop-shadow(0 0 6px ${color})` }}
+    />
   );
 }
 
@@ -414,17 +426,17 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
               <stop offset="100%" stopColor="#f472b6" />
             </linearGradient>
           </defs>
-          <BaseFlowPath d={paths.solarToInverter} />
-          <BaseFlowPath d={paths.batteryToInverter} />
-          <BaseFlowPath d={paths.gridToInverter} />
+          {solarToInverter <= 0.005 && <BaseFlowPath d={paths.solarToInverter} />}
+          {batteryToInverter <= 0.005 && inverterToBattery <= 0.005 && <BaseFlowPath d={paths.batteryToInverter} />}
+          {gridToInverter <= 0.005 && inverterToGrid <= 0.005 && <BaseFlowPath d={paths.gridToInverter} />}
           <BaseFlowPath d={paths.inverterToHome} />
-          <BaseFlowPath d={paths.inverterToUps} />
-          <FlowPath d={paths.solarToInverter} value={solarToInverter} delay="0s" />
-          <FlowPath d={paths.batteryToInverter} value={batteryToInverter} delay="-0.45s" />
-          <FlowPath d={paths.inverterToBattery} value={inverterToBattery} delay="-0.45s" />
-          <FlowPath d={paths.gridToInverter} value={gridToInverter} delay="-0.9s" />
-          <FlowPath d={paths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
-          <FlowPath d={paths.inverterToUps} value={inverterToUps} delay="-1.25s" />
+          {inverterToUps <= 0.005 && <BaseFlowPath d={paths.inverterToUps} />}
+          <FlowPath d={paths.solarToInverter} value={solarToInverter} color="#fbbf24" delay="0s" />
+          <FlowPath d={paths.batteryToInverter} value={batteryToInverter} color="#fbbf24" delay="-0.45s" />
+          <FlowPath d={paths.inverterToBattery} value={inverterToBattery} color="#10b981" delay="-0.45s" />
+          <FlowPath d={paths.gridToInverter} value={gridToInverter} color="#38bdf8" delay="-0.9s" />
+          <FlowPath d={paths.inverterToGrid} value={inverterToGrid} color="#38bdf8" delay="-0.9s" />
+          <FlowPath d={paths.inverterToUps} value={inverterToUps} color="#f8fafc" delay="-1.25s" />
           <FlowNode compact x={90} y={80} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
           <FlowNode x={350} y={200} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
           <FlowNode compact x={350} y={320} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />

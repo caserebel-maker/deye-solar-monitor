@@ -157,7 +157,6 @@ select {
 }
 
 .flow-line {
-  filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.58));
   stroke-dasharray: 10 16;
   animation: flow 1.75s linear infinite;
 }
