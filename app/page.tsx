@@ -28,6 +28,8 @@ import {
   Cpu,
   Info,
   Home,
+  Maximize,
+  Minimize,
   Moon,
   PlugZap,
   RefreshCw,
@@ -749,6 +751,21 @@ export default function DashboardPage() {
     const savedTheme = window.localStorage.getItem("deye-theme");
     return savedTheme === "light" || savedTheme === "dark" ? savedTheme : "dark";
   });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      void document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, []);
 
   const loadData = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true);
@@ -869,6 +886,14 @@ export default function DashboardPage() {
               type="button"
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+            <button
+              aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white/42 px-3 py-2 text-slate-600"
+              onClick={toggleFullscreen}
+              type="button"
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </button>
             {tabs.map((tab) => (
               <button
