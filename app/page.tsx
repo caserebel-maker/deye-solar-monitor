@@ -379,12 +379,12 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
   const gridLabel = gridToInverter > 0.005 ? "Grid Import" : inverterToGrid > 0.005 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
-    solarToInverter: "M 168 132 V 210 H 336 V 216",
-    batteryToInverter: "M 168 330 V 294 H 268",
-    inverterToBattery: "M 268 294 H 168 V 330",
-    gridToInverter: "M 504 132 V 210 H 336 V 216",
-    inverterToGrid: "M 336 216 V 210 H 504 V 132",
-    inverterToUps: "M 336 312 V 372",
+    solarToInverter: "M 150 148 V 205 H 310 V 212",
+    batteryToInverter: "M 150 362 V 310 H 252",
+    inverterToBattery: "M 252 310 H 150 V 362",
+    gridToInverter: "M 470 148 V 205 H 310 V 212",
+    inverterToGrid: "M 310 212 V 205 H 470 V 148",
+    inverterToUps: "M 310 310 V 362",
   };
   const mobilePaths = {
     solarToInverter: "M 104 116 H 130 Q 152 116 152 158 V 224 H 148",
@@ -407,7 +407,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
         </div>
       </div>
       <div className="energy-flow-canvas relative mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.55/1] lg:min-h-[470px]">
-        <svg viewBox="0 0 620 500" className="hidden h-full w-[72%] lg:block" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 620 500" className="hidden h-full w-[68%] lg:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -425,27 +425,27 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <FlowPath d={paths.gridToInverter} value={gridToInverter} delay="-0.9s" />
           <FlowPath d={paths.inverterToGrid} value={inverterToGrid} delay="-0.9s" />
           <FlowPath d={paths.inverterToUps} value={inverterToUps} delay="-1.25s" />
-          <FlowNode x={168} y={84} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
-          <FlowNode x={336} y={264} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-          <FlowNode x={336} y={420} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+          <FlowNode x={150} y={100} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+          <FlowNode x={310} y={260} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
+          <FlowNode x={310} y={410} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
-            x={168}
-            y={378}
+            x={150}
+            y={410}
             label="Battery"
             value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
             icon={BatteryFull}
             tone="text-cyan-500"
           />
           <FlowNode
-            x={504}
-            y={84}
+            x={470}
+            y={100}
             label={gridLabel}
             value={formatPower(gridValue)}
             icon={PlugZap}
             tone="text-blue-500"
           />
         </svg>
-        <div className="absolute bottom-5 right-5 hidden w-[25%] min-w-[220px] rounded-3xl border border-white/55 bg-white/50 p-4 shadow-2xl backdrop-blur-xl lg:block">
+        <div className="absolute bottom-9 right-[6%] hidden w-[245px] rounded-3xl border border-white/55 bg-white/50 p-4 shadow-2xl backdrop-blur-xl lg:block">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-500/70">Plant Summary</p>
           <div className="mt-3 grid gap-3">
             <div>

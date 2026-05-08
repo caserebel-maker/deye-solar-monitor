@@ -391,9 +391,10 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
   const rawGridKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - wireKw;
   const solarSurplusKw = Math.max(solarKw - loadKw - batteryChargeKw, 0);
   const loadDeficitKw = Math.max(loadKw + batteryChargeKw - solarKw - batteryDischargeKw, 0);
+  const gridStandbyKw = Math.abs(rawGridKw) <= 0.005 && purchaseKw <= 0.005 && solarSurplusKw > 0.005 ? 0.02 : 0;
   const gridImportKw =
     station.gridPower !== undefined
-      ? Math.max(purchaseKw, rawGridKw > 0.005 ? rawGridKw : 0, rawGridKw >= -0.005 ? loadDeficitKw : 0, 0)
+      ? Math.max(purchaseKw, rawGridKw > 0.005 ? rawGridKw : 0, rawGridKw >= -0.005 ? loadDeficitKw : 0, gridStandbyKw, 0)
       : Math.max(purchaseKw, rawGridKw > 0.005 ? rawGridKw : 0, loadDeficitKw > 0.005 ? Math.max(wireKw, loadDeficitKw) : 0, 0);
   const gridExportKw =
     station.gridPower !== undefined
