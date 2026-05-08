@@ -740,6 +740,11 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const [pullDistance, setPullDistance] = useState(0);
+  const pullStartY = useRef(0);
+  const pullActive = useRef(false);
+  const PULL_THRESHOLD = 70;
+
   const loadData = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true);
     try {
@@ -777,6 +782,59 @@ export default function DashboardPage() {
       window.clearTimeout(initial);
       window.clearInterval(timer);
     };
+  }, [loadData]);
+
+  useEffect(() => {
+    const onTouchStart = (event: TouchEvent) => {
+      if (window.scrollY > 0) {
+        pullActive.current = false;
+        return;
+      }
+      pullStartY.current = event.touches[0].clientY;
+      pullActive.current = true;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!pullActive.current) return;
+      const dy = event.touches[0].clientY - pullStartY.current;
+      if (dy <= 0 || window.scrollY > 0) {
+        pullActive.current = false;
+        setPullDistance(0);
+        return;
+      }
+      const damped = Math.min(dy * 0.45, 110);
+      setPullDistance(damped);
+    };
+
+    const onTouchEnd = () => {
+      if (!pullActive.current) return;
+      pullActive.current = false;
+      if (pullDistance >= PULL_THRESHOLD) {
+        void loadData(true);
+      }
+      setPullDistance(0);
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd);
+    window.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [pullDistance, loadData]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadData(true);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [loadData]);
 
   const metrics = data?.overview.metrics;
@@ -821,6 +879,22 @@ export default function DashboardPage() {
 
   return (
     <div className={`${theme === "dark" ? "dark-dashboard" : "light-dashboard"} min-h-screen px-3 pb-24 pt-[max(env(safe-area-inset-top),0.75rem)] sm:px-5 sm:pb-4 sm:pt-3 lg:px-6`}>
+      {pullDistance > 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center sm:hidden"
+          style={{
+            transform: `translateY(${Math.max(pullDistance - 50, 0)}px)`,
+            opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),
+          }}
+        >
+          <div className="mt-2 rounded-full border border-white/40 bg-slate-950/85 px-3 py-2 shadow-lg backdrop-blur-md">
+            <RefreshCw
+              className={`h-5 w-5 text-cyan-300 ${pullDistance >= PULL_THRESHOLD ? "rotate-180" : ""} ${isRefreshing ? "animate-spin" : ""} transition-transform duration-200`}
+            />
+          </div>
+        </div>
+      )}
       <main className="mx-auto max-w-[1860px]" id="dashboard-top">
         <header className="mb-3 flex flex-col gap-2 rounded-[1.4rem] border border-white/60 bg-white/38 px-3 py-2.5 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl sm:mb-4 sm:gap-3 sm:rounded-3xl sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
