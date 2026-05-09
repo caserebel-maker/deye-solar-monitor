@@ -544,19 +544,17 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
 
 function CctvCard() {
   const baseUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL;
-  const [stream, setStream] = useState<"tapo" | "tapo_sd">("tapo");
 
-  // Swap the ?src= query so the toggle hits a different go2rtc producer
   const hlsUrl = useMemo(() => {
     if (!baseUrl) return undefined;
     try {
       const u = new URL(baseUrl);
-      u.searchParams.set("src", stream);
+      u.searchParams.set("src", "tapo");
       return u.toString();
     } catch {
       return baseUrl;
     }
-  }, [baseUrl, stream]);
+  }, [baseUrl]);
 
   return (
     <section className="glass premium-panel flex min-h-[470px] flex-col rounded-3xl p-5">
@@ -564,29 +562,10 @@ function CctvCard() {
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">Security Feed</p>
           <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo CCTV Monitor</h2>
+          <p className="mt-1 text-[11px] font-medium text-slate-500">Lens A · close-up</p>
         </div>
-        <div className="flex items-center gap-2">
-          {baseUrl && (
-            <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[11px] font-medium">
-              <button
-                type="button"
-                onClick={() => setStream("tapo")}
-                className={`px-3 py-1.5 transition ${stream === "tapo" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
-              >
-                Lens 1 · HD
-              </button>
-              <button
-                type="button"
-                onClick={() => setStream("tapo_sd")}
-                className={`px-3 py-1.5 transition ${stream === "tapo_sd" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
-              >
-                Lens 2 · SD
-              </button>
-            </div>
-          )}
-          <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
-            <Camera className="h-5 w-5 text-indigo-500" />
-          </div>
+        <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
+          <Camera className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
       <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
@@ -637,8 +616,10 @@ function CctvPtzControls() {
   return (
     <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
       <div>
-        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-indigo-200/70">Pan / Tilt</p>
-        <p className="mt-0.5 text-[11px] text-white/55">{error ? <span className="text-rose-300">{error}</span> : pending ? `Moving ${pending}…` : "ONVIF · ~0.4s pulse"}</p>
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-indigo-200/70">Pan / Tilt · Lens B</p>
+        <p className="mt-0.5 text-[11px] text-white/55">
+          {error ? <span className="text-rose-300">{error}</span> : pending ? `Moving ${pending}…` : "ขยับเลนส์ wide · ดู feed ใน Tapo app"}
+        </p>
       </div>
       <div className="grid grid-cols-3 gap-1">
         <span />
