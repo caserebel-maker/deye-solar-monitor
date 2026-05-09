@@ -2,13 +2,58 @@
 
 ทำให้กดปุ่มเดียวบน Mac mini แล้ว pipeline CCTV กลับมารันได้ทันที — แทนที่จะต้องพิมพ์คำสั่งใน terminal ทีละอัน
 
-## TL;DR — 3 วิธี เลือกที่ชอบ
+## TL;DR — 4 วิธี เลือกที่ชอบ
 
 | วิธี | Setup ครั้งแรก | ใช้งาน |
 |---|---|---|
-| **A. Double-click .command** | ไม่ต้องตั้ง | เปิด Finder → double-click |
-| **B. Apple Shortcut** | 2 นาที | กดปุ่ม Dock / menu bar / Cmd+ปุ่ม |
-| **C. Dock app via Automator** | 3 นาที | คลิกไอคอนใน Dock |
+| **0. `Restart Tapo CCTV.app`** ⭐ pre-installed | drag ไป Dock ครั้งเดียว | คลิกไอคอนใน Dock |
+| A. Double-click .command | ไม่ต้องตั้ง | เปิด Finder → double-click |
+| B. Apple Shortcut | 2 นาที | กดปุ่ม Dock / menu bar / Cmd+ปุ่ม |
+| C. Dock app via Automator | 3 นาที | คลิกไอคอนใน Dock |
+
+---
+
+## วิธี 0 — `Restart Tapo CCTV.app` ⭐ ติดตั้งแล้วบน Mac mini
+
+`/Applications/Restart Tapo CCTV.app` — AppleScript wrapper ที่ compile ไว้แล้ว
+เรียก `cctv-restart.sh` + แสดง macOS notification ตั้งแต่เริ่มจนจบ ไม่เปิด Terminal
+
+### ใช้งาน
+
+1. **Finder → Applications** หา **"Restart Tapo CCTV"**
+2. **ลากไป Dock** (ครั้งเดียว) — pin ค้างไว้
+3. คลิกไอคอนใน Dock = pipeline restart + notification 🔄 → ✅ ภายใน ~30 วิ
+
+### Notifications ที่จะเห็น
+
+| Phase | Title | Sound |
+|---|---|---|
+| เริ่ม | 🔄 Tapo CCTV — กำลัง restart… | Pop |
+| เสร็จ healthy | ✅ Tapo CCTV — Pipeline พร้อมใช้งาน | Glass |
+| บางจุด fail | ⚠️ Tapo CCTV — บางจุดยัง fail (เปิด /tmp/cctv-restart-app.log) | Sosumi |
+
+### เปลี่ยนไอคอน (optional)
+
+Default = AppleScript ขาวกลม ถ้าอยากสวย:
+1. **Cmd+I** บน "Restart Tapo CCTV.app"
+2. ลาก `.png` หรือ `.icns` ใส่มุมซ้ายบนของ Get Info dialog
+3. (อาจต้อง relaunch Dock: `killall Dock` ใน terminal)
+
+### Recreate ถ้าต้องการ
+
+```bash
+osacompile -o "/Applications/Restart Tapo CCTV.app" - <<'APPLESCRIPT'
+display notification "กำลัง restart go2rtc + Tailscale + PTZ proxy…" with title "🔄 Tapo CCTV" sound name "Pop"
+try
+    do shell script "/bin/bash /Volumes/C1TB/EB-CI/deye-solar-monitor/scripts/cctv-restart.sh > /tmp/cctv-restart-app.log 2>&1"
+    display notification "Pipeline พร้อมใช้งาน" with title "✅ Tapo CCTV" sound name "Glass"
+on error
+    display notification "บางจุดยัง fail — เปิด /tmp/cctv-restart-app.log" with title "⚠️ Tapo CCTV" sound name "Sosumi"
+end try
+APPLESCRIPT
+```
+
+---
 
 ---
 
@@ -93,7 +138,7 @@ Apple Shortcuts app มากับ macOS Monterey+ — เปิดมาใช
 [1/5] go2rtc       — kickstart com.go2rtc LaunchAgent
 [2/5] tailscaled   — kickstart com.tailscale.tailscaled LaunchAgent
 [3/5] Tailscale    — tailscale up + funnel --https=443 → :1984
-[4/5] PTZ proxy    — kickstart com.cctv.ptz LaunchAgent (หรือ spawn manual)
+[4/5] PTZ proxy    — kickstart com.ebci.cctv-ptz LaunchAgent (หรือ spawn manual)
 [5/5] รอ 8 วินาที + รัน scripts/cctv-health.sh
        → macOS notification: ✅ healthy / ⚠️ partial / ✗ failed
 ```
@@ -108,7 +153,7 @@ Apple Shortcuts app มากับ macOS Monterey+ — เปิดมาใช
 |---|---|
 | Notification ไม่ขึ้น | System Settings → Notifications → "Script Editor" / "Shortcuts" → Allow |
 | `tailscale: command not found` | check path `which tailscale` แล้วแก้ `TS_BIN` ใน script |
-| `com.cctv.ptz LaunchAgent not found` | สร้าง plist ก่อน — ดู NEXT.md §1 ส่วน 2 หรือ spawn manual fallback ใน script |
+| `com.ebci.cctv-ptz LaunchAgent not found` | สร้าง plist ก่อน — ดู NEXT.md §1 ส่วน 2 หรือ spawn manual fallback ใน script |
 | Apple Shortcut กดไม่รัน | System Settings → Privacy & Security → Automation → ติ๊ก Shortcuts → Terminal/System Events |
 | double-click .command ขึ้น "cannot be opened" | Right-click → Open (ครั้งแรก macOS Gatekeeper ถาม) |
 

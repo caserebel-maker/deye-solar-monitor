@@ -14,7 +14,7 @@ set -u
 
 GO2RTC_LABEL="${GO2RTC_LABEL:-com.go2rtc}"
 TS_LABEL="${TS_LABEL:-com.tailscale.tailscaled}"
-PTZ_LABEL="${PTZ_LABEL:-com.cctv.ptz}"
+PTZ_LABEL="${PTZ_LABEL:-com.ebci.cctv-ptz}"
 
 GO2RTC_PORT="${GO2RTC_PORT:-1984}"
 PTZ_PORT="${PTZ_PORT:-1985}"
