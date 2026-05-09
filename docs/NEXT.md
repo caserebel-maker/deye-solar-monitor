@@ -176,6 +176,14 @@ cd /Volumes/C1TB/EB-CI/deye-solar-monitor && bash scripts/cctv-health.sh
 - [ ] Velocity slider PTZ
 - [ ] WebRTC mode (latency <1s)
 - [ ] go2rtc basic auth (`auth: viewer:...`)
+- [ ] Auto-recover cron (ทุก 5 นาที health check fail → trigger `cctv-restart.sh`)
+- [ ] Uptime monitor (UptimeRobot ping Funnel URL → LINE Notify)
+- [ ] Webhook จาก Vercel ถ้า prod เห็น stream offline → trigger restart อัตโนมัติ
+
+## §5.1 One-click restart ✅
+
+มีแล้ว — `scripts/cctv-restart.sh` + `scripts/cctv-restart.command`
+Setup Apple Shortcut / Automator app: ดู [docs/CCTV_RESTART.md](CCTV_RESTART.md)
 
 ---
 
