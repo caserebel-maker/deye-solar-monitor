@@ -702,6 +702,7 @@ function CctvLivePlayer({ src }: { src: string }) {
 
     let cancelled = false;
     let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+    let stallWatchdog: ReturnType<typeof setInterval> | null = null;
     let mediaRecoveryAttempts = 0;
 
     import("hls.js").then(({ default: Hls }) => {
@@ -747,6 +748,7 @@ function CctvLivePlayer({ src }: { src: string }) {
             if (cancelled) return;
             mediaRecoveryAttempts = 0;
             currentHls = buildHls();
+            armStallWatchdog();
           }, 4000);
         });
         return instance;
@@ -754,10 +756,60 @@ function CctvLivePlayer({ src }: { src: string }) {
 
       let currentHls = buildHls();
 
+      // Silent-stall detector: hls.js does not always fire a fatal error
+      // when the producer stops emitting segments. Poll currentTime; if the
+      // video should be playing but the playhead has not moved for 6s,
+      // tear down and rebuild — and on the second consecutive stall, also
+      // POST /api/restart on the go2rtc origin to kick the producer.
+      const armStallWatchdog = () => {
+        if (stallWatchdog) clearInterval(stallWatchdog);
+        let lastSeenTime = video.currentTime;
+        let lastAdvanceMs = Date.now();
+        let consecutiveRebuilds = 0;
+        stallWatchdog = setInterval(() => {
+          if (cancelled || video.paused || video.ended || video.readyState < 2) {
+            lastSeenTime = video.currentTime;
+            lastAdvanceMs = Date.now();
+            return;
+          }
+          if (video.currentTime > lastSeenTime + 0.05) {
+            lastSeenTime = video.currentTime;
+            lastAdvanceMs = Date.now();
+            consecutiveRebuilds = 0;
+            return;
+          }
+          if (Date.now() - lastAdvanceMs < 6000) return;
+
+          consecutiveRebuilds += 1;
+          setStatus("loading");
+          setErrorMessage(`reconnecting… (stalled${consecutiveRebuilds > 1 ? ` ×${consecutiveRebuilds}` : ""})`);
+          currentHls.destroy();
+          if (consecutiveRebuilds >= 2) {
+            // Producer is likely dead — kick go2rtc once
+            try {
+              const restartUrl = `${new URL(src).origin}/api/restart`;
+              fetch(restartUrl, { method: "POST", mode: "no-cors" }).catch(() => {});
+            } catch {}
+          }
+          recoveryTimer = setTimeout(() => {
+            if (cancelled) return;
+            mediaRecoveryAttempts = 0;
+            currentHls = buildHls();
+            armStallWatchdog();
+          }, 2500);
+          if (stallWatchdog) {
+            clearInterval(stallWatchdog);
+            stallWatchdog = null;
+          }
+        }, 2000);
+      };
+      armStallWatchdog();
+
       const previousCleanup = cleanup;
       cleanup = () => {
         previousCleanup();
         if (recoveryTimer) clearTimeout(recoveryTimer);
+        if (stallWatchdog) clearInterval(stallWatchdog);
         currentHls.destroy();
       };
     }).catch((err) => {
