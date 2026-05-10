@@ -4,15 +4,76 @@
 
 ---
 
-## §0 TL;DR — Stability tuning เป็น priority (user รายงานภาพหายบ่อย)
+## §0 🔁 ที่ Mac mini ครั้งหน้า — copy/paste ตามนี้
 
-🔴 **User report (2026-05-10):** ภาพหายหลายนาทีแล้วกลับมาเอง — symptom = watchdog ทำงาน แต่ 5 min interval หยาบไป + อาจมี RTSP HD drop
+> Laptop session 2026-05-10 ส่งงานต่อ — user รายงาน "ภาพหายหลายนาทีแล้วกลับมาเอง"
+> วิเคราะห์: watchdog interval 5 นาทีหยาบไป + อาจมี Tapo HD RTSP drop
 
-**ลำดับที่แนะนำ ที่ Mac mini ครั้งหน้า:**
-1. รัน `bash scripts/cctv-diagnose.sh | pbcopy` → paste ให้ Claude ดูใน chat
-2. ตามผล diagnose → ทำ §1 ของ `docs/CCTV_STABILITY.md` (watchdog 5min → 60s) — low risk, ใหญ่สุด
-3. ถ้ายังหายบ่อย → §2 (RTSP stream1 HD → stream2 SD)
-4. ยังไม่นิ่ง → §3 tuning หรือ §4 WebRTC
+### Prompt ให้พิมพ์ใน Claude Code ตอนเปิด Mac mini
+
+```
+อ่าน docs/NEXT.md §0 แล้วเริ่ม Step 1 ทันที — ภาพหายบ่อย แก้ให้ที
+```
+
+### Step 1 — Pull repo + รัน diagnose ⏱ 2 นาที
+
+```bash
+cd <path-to-deye-solar-monitor>
+git pull origin main --ff-only
+bash scripts/cctv-diagnose.sh | pbcopy
+```
+
+→ paste output ลงใน chat ให้ Claude วิเคราะห์ — จะรู้ว่า drop จริงไหม + sleep ไหม + packet loss ไหม
+
+### Step 2 — เร่ง watchdog 5min → 60s ⏱ 1 นาที (ทำเลย, low risk)
+
+```bash
+PLIST=~/Library/LaunchAgents/com.ebci.cctv-watchdog.plist
+cp "$PLIST" "$PLIST.bak"
+plutil -replace StartInterval -integer 60 "$PLIST"
+launchctl bootout "gui/$UID/com.ebci.cctv-watchdog" 2>/dev/null
+launchctl bootstrap "gui/$UID" "$PLIST"
+plutil -extract StartInterval raw "$PLIST"   # ต้องขึ้น 60
+```
+
+**ผล:** downtime สูงสุด 5 นาที → 1 นาที (ลด 5 เท่า)
+
+**Rollback ถ้าพัง:**
+```bash
+mv "$PLIST.bak" "$PLIST"
+launchctl bootout "gui/$UID/com.ebci.cctv-watchdog"
+launchctl bootstrap "gui/$UID" "$PLIST"
+```
+
+### Step 3 — สังเกต 1-2 วัน ก่อนทำ §2 (SD swap)
+
+หลัง Step 2 ใช้ dashboard ปกติ 1-2 วัน:
+- ถ้านิ่งขึ้นชัด ✅ จบ — รัน diagnose อีกรอบยืนยัน drop count ลดลง
+- ถ้ายังหายบ่อย → ทำ Step 4
+
+### Step 4 — Switch HD → SD (ถ้า Step 2 ไม่พอ)
+
+```bash
+# Backup
+cp ~/.config/go2rtc/go2rtc.yaml ~/.config/go2rtc/go2rtc.yaml.bak
+
+# แก้ stream1 → stream2 ใน source ของ tapo:
+nano ~/.config/go2rtc/go2rtc.yaml
+# เปลี่ยน  rtsp://...:554/stream1   →   rtsp://...:554/stream2
+
+launchctl kickstart -k gui/$UID/com.go2rtc
+sleep 3
+curl -s http://localhost:1984/api/streams | python3 -m json.tool
+```
+
+ภาพคุณภาพต่ำลง (640×360 vs 1920×1080) แต่ stable ขึ้นมาก
+รายละเอียด trade-off ดู [docs/CCTV_STABILITY.md §2](CCTV_STABILITY.md)
+
+### Step 5 — ยังไม่นิ่ง?
+
+ดู [docs/CCTV_STABILITY.md](CCTV_STABILITY.md) §3 (tuning hls config) หรือ §4 (WebRTC) ปรึกษา Claude
+
+---
 
 ---
 
