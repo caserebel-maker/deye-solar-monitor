@@ -6,13 +6,14 @@
 
 ## §0 🔁 ที่ Mac mini ครั้งหน้า — copy/paste ตามนี้
 
-> Laptop session 2026-05-10 ส่งงานต่อ — user รายงาน "ภาพหายหลายนาทีแล้วกลับมาเอง"
-> วิเคราะห์: watchdog interval 5 นาทีหยาบไป + อาจมี Tapo HD RTSP drop
+> Laptop session 2026-05-10 ส่งงานต่อ — มี 2 งานค้าง:
+>   ก) แก้ "ภาพ CCTV หายหลายนาที" — watchdog interval ลด 5min → 60s
+>   ข) Setup Telegram alert solar > 2.5 kW — สร้าง bot + ใส่ env Vercel
 
 ### Prompt ให้พิมพ์ใน Claude Code ตอนเปิด Mac mini
 
 ```
-อ่าน docs/NEXT.md §0 แล้วเริ่ม Step 1 ทันที — ภาพหายบ่อย แก้ให้ที
+อ่าน docs/NEXT.md §0 — ทำงาน 2 อย่าง: (1) แก้ภาพหาย step 1-2  (2) setup Telegram alert
 ```
 
 ### Step 1 — Pull repo + รัน diagnose ⏱ 2 นาที
@@ -72,6 +73,55 @@ curl -s http://localhost:1984/api/streams | python3 -m json.tool
 ### Step 5 — ยังไม่นิ่ง?
 
 ดู [docs/CCTV_STABILITY.md](CCTV_STABILITY.md) §3 (tuning hls config) หรือ §4 (WebRTC) ปรึกษา Claude
+
+---
+
+## §0.0 งาน (ข) — Setup Telegram alert solar > 2.5 kW
+
+ที่เตรียมไว้บน laptop session แล้ว (commit ก่อนหน้านี้):
+- `app/api/cron/solar-threshold/route.ts` — cron handler
+- `lib/telegram.ts` — bot send helper
+- `vercel.json` — schedule `0 * * * *` (ทุกชั่วโมงตรง)
+- `docs/SOLAR_ALERTS.md` — guide เต็ม
+
+**ที่ Mac mini ต้องทำ:**
+
+### Setup #1 — สร้าง Telegram bot (~2 นาที)
+- Telegram → `@BotFather` → `/newbot` → ตั้งชื่อ + username (ลงท้าย `_bot`)
+- เก็บ **Bot Token** ไว้
+- เปิด chat กับ bot ที่สร้าง → กด Start
+- เปิด `https://api.telegram.org/bot<TOKEN>/getUpdates` → จด **chat_id**
+
+### Setup #2 — ใส่ env vars ใน Vercel (~1 นาที)
+```bash
+cd <path-to-deye-solar-monitor>
+echo "<BOT_TOKEN>"  | npx vercel env add TELEGRAM_BOT_TOKEN  production preview development
+echo "<CHAT_ID>"    | npx vercel env add TELEGRAM_CHAT_ID    production preview development
+openssl rand -hex 32 | npx vercel env add CRON_SECRET        production preview development
+```
+
+### Setup #3 — Deploy
+```bash
+git pull origin main --ff-only   # ดึง code ที่ laptop เตรียมไว้
+npx vercel deploy --prod --yes
+```
+
+### Setup #4 — Test ทันที
+```bash
+SECRET=$(grep CRON_SECRET .env.local | cut -d= -f2- | tr -d '"')
+curl -H "Authorization: Bearer $SECRET" \
+  https://monitor-solar-inverter-deye-battery.vercel.app/api/cron/solar-threshold
+```
+
+ถ้า solar ตอนนี้ > 2.5 kW → Telegram จะส่งข้อความเข้าทันที 📲
+ถ้าน้อยกว่า → response `{ "sent": false }` → ลด threshold ชั่วคราวเทส:
+```bash
+echo "0.1" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production --force
+npx vercel deploy --prod --yes
+# ทดสอบเสร็จเปลี่ยนกลับ 2.5
+```
+
+**รายละเอียดเต็ม + troubleshooting:** [docs/SOLAR_ALERTS.md](SOLAR_ALERTS.md)
 
 ---
 
