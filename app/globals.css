@@ -117,6 +117,32 @@ select {
   font-variation-settings: "wght" 650;
 }
 
+/* Eyebrow / accent labels — readable in both dark and light dashboards.
+   Replaces the old text-indigo-500/70 (purple-on-navy = low contrast). */
+.eyebrow-text {
+  color: rgb(165 243 252 / 0.92); /* cyan-200 */
+  letter-spacing: inherit;
+}
+.light-dashboard .eyebrow-text {
+  color: rgb(15 118 110); /* teal-700 — deep enough on pastel light */
+}
+
+.eyebrow-icon {
+  color: rgb(34 211 238); /* cyan-400 */
+}
+.light-dashboard .eyebrow-icon {
+  color: rgb(13 148 136); /* teal-600 */
+}
+
+/* Inset panels with their own dark slate bg (e.g. PTZ controls inside CCTV
+   card) — slightly different shade. */
+.eyebrow-text-inset {
+  color: rgb(165 243 252 / 0.78); /* cyan-200/78 */
+}
+.light-dashboard .eyebrow-text-inset {
+  color: rgb(94 234 212 / 0.95); /* teal-300 — inset panel is still dark in light mode */
+}
+
 .data-readout {
   font-variant-numeric: tabular-nums;
 }

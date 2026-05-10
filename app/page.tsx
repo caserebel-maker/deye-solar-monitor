@@ -398,7 +398,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
     <section className="glass premium-panel rounded-3xl p-4 sm:p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/70">Live Distribution</p>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Live Distribution</p>
           <h2 className="mt-1 text-xl font-semibold text-slate-950">Energy Flow Matrix</h2>
         </div>
         <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
@@ -486,25 +486,25 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
       </div>
       <div className="mt-3 hidden grid-cols-2 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur lg:grid 2xl:grid-cols-4">
         <div className="rounded-2xl bg-white/35 px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Monthly Production</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Monthly Production</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">
             {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-xs">kWh</span>
           </p>
         </div>
         <div className="rounded-2xl bg-white/35 px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Monthly Load</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Monthly Load</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">
             {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-xs">kWh</span>
           </p>
         </div>
         <div className="rounded-2xl bg-white/35 px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Daily Production</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Daily Production</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">
             {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-xs">kWh</span>
           </p>
         </div>
         <div className="rounded-2xl bg-white/35 px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[0.14em] text-indigo-500/70">Weather</p>
+          <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Weather</p>
           <p className="data-readout mt-1 flex items-center gap-1 text-xl font-black text-slate-950">
             <CloudSun className="h-4 w-4" /> 33 <span className="text-xs">°C</span>
           </p>
@@ -560,7 +560,7 @@ function CctvCard() {
     <section className="glass premium-panel flex min-h-[470px] flex-col rounded-3xl p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">Security Feed</p>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
           <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo CCTV Monitor</h2>
           <p className="mt-1 text-[11px] font-medium text-slate-500">Lens A · close-up</p>
         </div>
@@ -616,7 +616,7 @@ function CctvPtzControls() {
   return (
     <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
       <div>
-        <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-indigo-200/70">Pan / Tilt · Lens B</p>
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] eyebrow-text-inset">Pan / Tilt · Lens B</p>
         <p className="mt-0.5 text-[11px] text-white/55">
           {error ? <span className="text-rose-300">{error}</span> : pending ? `Moving ${pending}…` : "ขยับเลนส์ wide · ดู feed ใน Tapo app"}
         </p>
@@ -902,7 +902,7 @@ function WeatherForecastCard() {
     <section className="glass premium-panel rounded-3xl p-4 sm:p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/70">Forecast</p>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Forecast</p>
           <h2 className="mt-1 truncate text-lg font-semibold text-slate-950">12-hour outlook</h2>
         </div>
         <div className="flex items-center gap-2 rounded-2xl border border-white/55 bg-white/45 px-3 py-2">
@@ -956,7 +956,7 @@ function ChartPanel({
 }>) {
   return (
     <section className="glass premium-panel rounded-3xl p-5">
-      {eyebrow && <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">{eyebrow}</p>}
+      {eyebrow && <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">{eyebrow}</p>}
       <h2 className="mt-1 text-xl font-semibold text-slate-950">{title}</h2>
       <div className="mt-4 h-72">{children}</div>
     </section>
@@ -1324,7 +1324,7 @@ export default function DashboardPage() {
         <section className="mt-4 scroll-mt-4 glass premium-panel rounded-3xl p-5" id="alerts-section">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-indigo-500/60">Risk Register</p>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Risk Register</p>
               <h2 className="mt-1 text-xl font-semibold text-slate-950">Alarm & Error Log</h2>
             </div>
             <div className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50 p-2">
