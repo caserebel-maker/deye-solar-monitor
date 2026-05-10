@@ -4,7 +4,19 @@
 
 ---
 
-## §0 TL;DR — Path C ลงเรียบร้อยแล้ว (2026-05-09 10:19 prod)
+## §0 TL;DR — Stability tuning เป็น priority (user รายงานภาพหายบ่อย)
+
+🔴 **User report (2026-05-10):** ภาพหายหลายนาทีแล้วกลับมาเอง — symptom = watchdog ทำงาน แต่ 5 min interval หยาบไป + อาจมี RTSP HD drop
+
+**ลำดับที่แนะนำ ที่ Mac mini ครั้งหน้า:**
+1. รัน `bash scripts/cctv-diagnose.sh | pbcopy` → paste ให้ Claude ดูใน chat
+2. ตามผล diagnose → ทำ §1 ของ `docs/CCTV_STABILITY.md` (watchdog 5min → 60s) — low risk, ใหญ่สุด
+3. ถ้ายังหายบ่อย → §2 (RTSP stream1 HD → stream2 SD)
+4. ยังไม่นิ่ง → §3 tuning หรือ §4 WebRTC
+
+---
+
+## §0.1 Path C ลงเรียบร้อยแล้ว (2026-05-09 10:19 prod)
 
 ✅ **Path C live ใน production** — commit `d06b245` (Mac mini) ลบ Lens 1/2 toggle + ใส่ caption "Lens A · close-up" + เปลี่ยน label เป็น "Pan / Tilt · Lens B" + helper text — push แล้วผ่าน auto-deploy `c658326`
 
@@ -182,8 +194,18 @@ cd /Volumes/C1TB/EB-CI/deye-solar-monitor && bash scripts/cctv-health.sh
 
 ## §5.1 One-click restart ✅
 
-มีแล้ว — `scripts/cctv-restart.sh` + `scripts/cctv-restart.command`
+มีแล้ว — `scripts/cctv-restart.sh` + `scripts/cctv-restart.command` + `Restart Tapo CCTV.app` ใน /Applications
 Setup Apple Shortcut / Automator app: ดู [docs/CCTV_RESTART.md](CCTV_RESTART.md)
+
+## §5.2 Stability tuning (in progress)
+
+User report ภาพหายหลายนาที — แผนแก้ + diagnostic script + tuning steps อยู่ใน [docs/CCTV_STABILITY.md](CCTV_STABILITY.md)
+
+- `scripts/cctv-diagnose.sh` — รวบ logs จาก go2rtc + watchdog + sleep events + ping → markdown output
+- §1: เร่ง watchdog 5min → 60s (low risk, ใหญ่สุด)
+- §2: ลอง stream2 SD แทน stream1 HD (ถ้า §1 ไม่พอ)
+- §3: tuning hls/segment_duration + hls.js liveBackBufferLength
+- §4: WebRTC mode (ของใหญ่ ทำ last)
 
 ---
 
