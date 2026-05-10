@@ -1,24 +1,27 @@
 # Solar Production Alerts (Telegram)
 
-แจ้งเตือนทาง Telegram เมื่อ solar **กำลังผลิตตอนนี้** เกิน threshold (default 2.5 kW)
+ส่ง **status update ทุก 30 นาที** ช่วงกลางวัน (BKK 06:00–19:00) — แต่ละข้อความบอกว่ากำลังผลิตอยู่เท่าไหร่ + เกินหรือต่ำกว่า threshold (default 2.5 kW)
 
 ## ภาพรวม
 
 ```
-Vercel Cron (every hour at :00)
+Vercel Cron (every 30 min, all UTC hours)
    │
    ▼
 GET /api/cron/solar-threshold
    │ (verify CRON_SECRET)
    ▼
+Daylight check: Bangkok hour ∈ [6, 19)?
+   │   ├─ no → skip (return ok+skipped)
+   │   └─ yes
+   ▼
 getSolarOverview() จาก Deye API
    │
-   ├─ power < threshold → log + return (ไม่ส่ง)
-   │
-   └─ power ≥ threshold → sendTelegramMessage() → Telegram บน iPhone/มือถือ
+   └─ source = "live" → sendTelegramMessage() พร้อม indicator ▲ (over) / ▼ (under)
 ```
 
-ทุกชั่วโมง ถ้ายังเกินก็ยังส่งซ้ำ — design ตาม user request
+**ส่งเสมอช่วงกลางวัน** ไม่ว่าเกินหรือต่ำกว่า — ข้อความบอกสถานะเอง
+~28 messages/วัน ในช่วง 6 AM - 7 PM (กลางคืน solar = 0 เลย skip)
 
 ---
 
@@ -122,16 +125,30 @@ npx vercel deploy --prod --yes
 
 ## ตัวอย่าง message
 
+**ตอนผลิตเกิน threshold:**
 ```
-☀️ *Solar ผลิตเกิน 2.5 kW*
+☀️ Solar > 2.5 kW
 
-⚡ ตอนนี้ผลิต *2.81 kW*
-🏠 บ้านใช้ *0.94 kW*
-💡 Surplus *1.87 kW* — เปิดเครื่องใช้ไฟได้สบาย
-📊 วันนี้สะสม *14.2 kWh*
-🔋 Battery *87%*
+⚡ ตอนนี้ผลิต 2.81 kW ▲
+🏠 บ้านใช้ 0.94 kW
+💡 Surplus 1.87 kW — เปิดเครื่องใช้ไฟได้
+📊 วันนี้สะสม 14.2 kWh
+🔋 Battery 87%
 
-[เปิด dashboard](https://monitor-solar-inverter-deye-battery.vercel.app/)
+[เปิด dashboard]
+```
+
+**ตอนผลิตต่ำกว่า threshold:**
+```
+🌤️ Solar < 2.5 kW
+
+⚡ ตอนนี้ผลิต 1.42 kW ▼
+🏠 บ้านใช้ 1.85 kW
+📥 Import 0.43 kW — ดึงไฟจาก grid/battery
+📊 วันนี้สะสม 14.2 kWh
+🔋 Battery 87%
+
+[เปิด dashboard]
 ```
 
 ---
@@ -143,15 +160,31 @@ npx vercel deploy --prod --yes
 echo "3.0" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production --force
 ```
 
+### เปลี่ยนช่วงเวลากลางวัน
+default: BKK 06:00–19:00 (cron ที่ออกนอกช่วงนี้จะ skip)
+ถ้าอยากแคบลง เช่น 09:00–17:00:
+```bash
+echo "9"  | npx vercel env add SOLAR_ALERT_HOUR_START production --force
+echo "17" | npx vercel env add SOLAR_ALERT_HOUR_END   production --force
+```
+
 ### ลด/เพิ่มความถี่
 แก้ `vercel.json`:
 ```json
-{ "schedule": "*/30 * * * *" }   // ทุก 30 นาที
-{ "schedule": "0 6-18 * * *" }   // ทุก ชม. แต่ 6 AM - 6 PM เท่านั้น
+{ "schedule": "*/30 * * * *" }   // ทุก 30 นาที (default)
+{ "schedule": "0 * * * *" }      // ทุกชั่วโมง
+{ "schedule": "*/15 * * * *" }   // ทุก 15 นาที (= ~52 ข้อความ/วัน กลางวัน)
 { "schedule": "0 */2 * * *" }    // ทุก 2 ชม.
 ```
 
 แล้ว `git commit + push` deploy ใหม่
+
+### Force send นอกช่วงกลางวัน (debug)
+```bash
+curl -H "Authorization: Bearer $SECRET" \
+  "https://monitor-solar-inverter-deye-battery.vercel.app/api/cron/solar-threshold?force=1"
+```
+`?force=1` ข้าม daylight check ส่งให้เลย (มีประโยชน์ตอน test)
 
 ### ส่งหลายคน
 สร้าง Telegram **group**, เพิ่ม bot เข้า group, หา group chat_id (จะเริ่มด้วย `-100...`) แล้วใส่ใน `TELEGRAM_CHAT_ID` แทน
@@ -167,7 +200,8 @@ echo "3.0" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production --force
 | `Telegram API 400: chat not found` | chat_id ผิด — start bot ใหม่ + getUpdates |
 | 401 จาก curl test | Bearer token ไม่ตรง — pull env ใหม่ `npx vercel env pull` |
 | ข้อความไม่มี markdown formatting | parse_mode "Markdown" — escape `_*[]` ใน text ถ้ามี |
-| ส่งทุก ชม. รำคาญ | เปลี่ยน schedule เป็น `0 6-18 * * *` เฉพาะกลางวัน |
+| ส่งทุก 30 นาที รำคาญ | แก้ vercel.json เป็น `0 * * * *` (ทุกชั่วโมง) หรือ `0 */2 * * *` (ทุก 2 ชม.) |
+| ไม่อยากเห็นข้อความตอน solar = 0 ตอนค่ำ | เปลี่ยน `SOLAR_ALERT_HOUR_END` จาก 19 → 17 |
 | อยาก mute ตอนกลางคืน | Telegram client → silence chat กับ bot ตอนนอน |
 
 ---
@@ -180,4 +214,4 @@ echo "3.0" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production --force
 - [ ] Daily summary 18:00 น. — สรุปวันนี้ผลิตได้ X kWh, ใช้ไป Y kWh
 - [ ] Weekly summary วันอาทิตย์ 20:00 น.
 - [ ] Quiet hours config (ไม่ส่งช่วง 22:00-06:00)
-- [ ] Persistent state ใน Upstash Redis (Vercel Marketplace) — dedupe "ส่งเฉพาะตอนข้ามเส้น" แทนทุกชั่วโมง
+- [ ] Persistent state ใน Upstash Redis (Vercel Marketplace) — dedupe "ส่งเฉพาะตอนข้ามเส้น" แทนทุก 30 นาที

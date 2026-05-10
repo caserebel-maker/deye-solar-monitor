@@ -1,7 +1,8 @@
-// Vercel Cron — เช็คทุกชั่วโมง ถ้า solar power > threshold → ส่ง Telegram
+// Vercel Cron — periodic Telegram status update
 //
-// Schedule: 0 * * * *  (top of every hour)
-// Configured in vercel.json
+// Schedule: every 30 min (configured in vercel.json)
+//   - กลางวัน Bangkok 06:00-19:00 → ส่ง status update พร้อม indicator ▲/▼ vs threshold
+//   - กลางคืน → skip (solar = 0, ไม่มีอะไรให้รายงาน)
 //
 // Auth: Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`
 //   ถ้า CRON_SECRET ไม่ตรง → 401
@@ -16,7 +17,10 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const DEFAULT_THRESHOLD_KW = 2.5;
+const DEFAULT_DAYLIGHT_START_HR = 6;   // Bangkok time
+const DEFAULT_DAYLIGHT_END_HR = 19;    // Bangkok time (exclusive — last fire at 18:30)
 const PROD_URL = "https://monitor-solar-inverter-deye-battery.vercel.app";
+const BANGKOK_OFFSET_HRS = 7;
 
 function getThreshold(): number {
   const raw = process.env.SOLAR_ALERT_THRESHOLD_KW;
@@ -25,10 +29,24 @@ function getThreshold(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_THRESHOLD_KW;
 }
 
+function getDaylightWindow(): { start: number; end: number } {
+  const start = Number(process.env.SOLAR_ALERT_HOUR_START ?? DEFAULT_DAYLIGHT_START_HR);
+  const end = Number(process.env.SOLAR_ALERT_HOUR_END ?? DEFAULT_DAYLIGHT_END_HR);
+  return {
+    start: Number.isFinite(start) ? start : DEFAULT_DAYLIGHT_START_HR,
+    end: Number.isFinite(end) ? end : DEFAULT_DAYLIGHT_END_HR,
+  };
+}
+
+function bangkokHour(): number {
+  // Vercel runs UTC. Convert to Bangkok (UTC+7) without DST drama.
+  const utcHour = new Date().getUTCHours();
+  return (utcHour + BANGKOK_OFFSET_HRS) % 24;
+}
+
 function authorize(req: Request): { ok: true } | { ok: false; reason: string } {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
-    // ยังไม่ได้ตั้ง secret = อนุญาต (สำหรับ dev/test) แต่ log warning
     console.warn("CRON_SECRET not set — endpoint open to public");
     return { ok: true };
   }
@@ -39,20 +57,36 @@ function authorize(req: Request): { ok: true } | { ok: false; reason: string } {
   return { ok: true };
 }
 
-function formatAlert(overview: SolarOverview, threshold: number): string {
+function formatStatus(overview: SolarOverview, threshold: number): string {
   const { solarKw, todayProductionKwh, batterySoc, loadKw } = overview.metrics;
+  const isOver = solarKw >= threshold;
+  const arrow = isOver ? "▲" : "▼";
+  const headerEmoji = isOver ? "☀️" : "🌤️";
+  const headerText = isOver
+    ? `*Solar > ${threshold.toFixed(1)} kW*`
+    : `*Solar < ${threshold.toFixed(1)} kW*`;
+
   const surplus = solarKw - loadKw;
-  const surplusLine = surplus > 0 ? `\n💡 Surplus *${surplus.toFixed(2)} kW* — เปิดเครื่องใช้ไฟได้สบาย` : "";
-  return [
-    `☀️ *Solar ผลิตเกิน ${threshold.toFixed(1)} kW*`,
+  const lines: string[] = [
+    `${headerEmoji} ${headerText}`,
     ``,
-    `⚡ ตอนนี้ผลิต *${solarKw.toFixed(2)} kW*`,
-    `🏠 บ้านใช้ *${loadKw.toFixed(2)} kW*${surplusLine}`,
+    `⚡ ตอนนี้ผลิต *${solarKw.toFixed(2)} kW* ${arrow}`,
+    `🏠 บ้านใช้ *${loadKw.toFixed(2)} kW*`,
+  ];
+
+  if (surplus > 0.05) {
+    lines.push(`💡 Surplus *${surplus.toFixed(2)} kW* — เปิดเครื่องใช้ไฟได้`);
+  } else if (surplus < -0.05) {
+    lines.push(`📥 Import *${Math.abs(surplus).toFixed(2)} kW* — ดึงไฟจาก grid/battery`);
+  }
+
+  lines.push(
     `📊 วันนี้สะสม *${todayProductionKwh.toFixed(1)} kWh*`,
     `🔋 Battery *${Math.round(batterySoc)}%*`,
     ``,
     `[เปิด dashboard](${PROD_URL}/)`,
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 export async function GET(req: Request) {
@@ -62,6 +96,19 @@ export async function GET(req: Request) {
   }
 
   const threshold = getThreshold();
+  const { start, end } = getDaylightWindow();
+  const hour = bangkokHour();
+  const url = new URL(req.url);
+  const force = url.searchParams.get("force") === "1";
+
+  if (!force && (hour < start || hour >= end)) {
+    return NextResponse.json({
+      ok: true,
+      skipped: "outside daylight window",
+      bangkokHour: hour,
+      window: `${start}:00–${end}:00`,
+    });
+  }
 
   try {
     const overview = await getSolarOverview();
@@ -77,17 +124,7 @@ export async function GET(req: Request) {
       });
     }
 
-    if (power < threshold) {
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        power,
-        threshold,
-        reason: "below threshold",
-      });
-    }
-
-    const message = formatAlert(overview, threshold);
+    const message = formatStatus(overview, threshold);
     await sendTelegramMessage(message, { parseMode: "Markdown" });
 
     return NextResponse.json({
@@ -95,6 +132,8 @@ export async function GET(req: Request) {
       sent: true,
       power,
       threshold,
+      state: power >= threshold ? "over" : "under",
+      bangkokHour: hour,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unexpected error";

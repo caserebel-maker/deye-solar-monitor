@@ -81,7 +81,7 @@ curl -s http://localhost:1984/api/streams | python3 -m json.tool
 ที่เตรียมไว้บน laptop session แล้ว (commit ก่อนหน้านี้):
 - `app/api/cron/solar-threshold/route.ts` — cron handler
 - `lib/telegram.ts` — bot send helper
-- `vercel.json` — schedule `0 * * * *` (ทุกชั่วโมงตรง)
+- `vercel.json` — schedule `*/30 * * * *` (ทุก 30 นาที, route filter เฉพาะ BKK 06:00–19:00 = ~28 msg/วัน)
 - `docs/SOLAR_ALERTS.md` — guide เต็ม
 
 **ที่ Mac mini ต้องทำ:**
