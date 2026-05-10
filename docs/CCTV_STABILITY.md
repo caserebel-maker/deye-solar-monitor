@@ -27,6 +27,23 @@ Output รวบ:
 
 watchdog ปัจจุบัน probe ทุก 5 นาที = stream อาจค้างได้สูงสุด ~5 นาทีก่อน auto-recover ลด interval ลง 5 เท่า:
 
+### ⚠️ macOS Tahoe — scripts ต้องอยู่ใน home dir ไม่ใช่ /Volumes
+
+LaunchAgent ที่ launchd รัน **ถูก block** จากการ access `/Volumes/*` (external drive) — error คือ
+`Operation not permitted` แม้ user ไม่เห็นใน UI privacy เลย Terminal มี Full Disk Access แต่
+launchd ไม่มี → script ไม่เคยรัน
+
+**แก้:** mirror scripts ไปที่ `~/cctv-scripts/` (home dir = ไม่ block):
+
+```bash
+mkdir -p ~/cctv-scripts
+cp /Volumes/.../scripts/cctv-{watchdog,restart,health}.sh ~/cctv-scripts/
+chmod +x ~/cctv-scripts/*.sh
+```
+
+แล้วชี้ plist ไปที่ `~/cctv-scripts/cctv-watchdog.sh` แทน path ใน /Volumes
+(ดูข้างล่าง — vi/nano edit `ProgramArguments` ใน plist ก่อน reload)
+
 ### วิธีแก้ plist
 
 ```bash
@@ -38,13 +55,34 @@ cp "$PLIST" "$PLIST.bak"
 # Set interval = 60s
 plutil -replace StartInterval -integer 60 "$PLIST"
 
+# Point ProgramArguments to home dir (avoid /Volumes block)
+plutil -replace ProgramArguments -json '["/bin/bash","/Users/'"$USER"'/cctv-scripts/cctv-watchdog.sh"]' "$PLIST"
+
 # Reload
 launchctl bootout "gui/$UID/com.ebci.cctv-watchdog" 2>/dev/null
 launchctl bootstrap "gui/$UID" "$PLIST"
 
 # Verify
 plutil -extract StartInterval raw "$PLIST"   # ควรขึ้น 60
+plutil -extract ProgramArguments.1 raw "$PLIST"   # ควรขึ้น /Users/.../cctv-scripts/...
 ```
+
+### วิธีตรวจว่า watchdog รันจริง
+
+```bash
+# touch state file
+date > /tmp/cctv-watchdog.state
+
+# รอ 65s — watchdog tick ครั้งหน้า
+sleep 65
+
+# state file ควรหาย (watchdog เห็น healthy + clear state)
+ls -la /tmp/cctv-watchdog.state   # No such file = ✅
+cat /tmp/cctv-watchdog.log         # มีบรรทัด "RECOVERED — pipeline healthy again"
+```
+
+ถ้า launchd err มี `Operation not permitted` → script ยังอยู่ใน /Volumes — ทำ mirror ตาม
+section ข้างบนก่อน
 
 ### ผลกระทบ
 

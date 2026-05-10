@@ -4,75 +4,25 @@
 
 ---
 
-## §0 🔁 ที่ Mac mini ครั้งหน้า — copy/paste ตามนี้
+## §0 🔁 สถานะปัจจุบัน — Mac mini session 2026-05-10 22:30 +07
 
-> Laptop session 2026-05-10 ส่งงานต่อ — มี 2 งานค้าง:
->   ก) แก้ "ภาพ CCTV หายหลายนาที" — watchdog interval ลด 5min → 60s
->   ข) Setup Telegram alert solar > 2.5 kW — สร้าง bot + ใส่ env Vercel
+### งาน (ก) ภาพ CCTV หายหลายนาที — ✅ Step 1-2 เสร็จ
 
-### Prompt ให้พิมพ์ใน Claude Code ตอนเปิด Mac mini
+**Diagnose พบ root cause สำคัญ:** macOS Tahoe block LaunchAgent จาก `/Volumes/C1TB/...` →
+**watchdog ไม่ได้รันเลย 24 ชม.** (`Operation not permitted` ใน /tmp/cctv-watchdog-launchd.err)
 
-```
-อ่าน docs/NEXT.md §0 — ทำงาน 2 อย่าง: (1) แก้ภาพหาย step 1-2  (2) setup Telegram alert
-```
+**แก้:**
+1. ✅ Mirror scripts ไป `~/cctv-scripts/{watchdog,restart,health}.sh` (home dir = ไม่ block)
+2. ✅ Update plist `com.ebci.cctv-watchdog`:
+   - `ProgramArguments` ชี้ `~/cctv-scripts/cctv-watchdog.sh`
+   - `StartInterval` 300 → **60s** (ลด max downtime 5 เท่า)
+3. ✅ ทดสอบ: touch state file → 60s ต่อมา watchdog เห็น healthy + clear → log "RECOVERED"
 
-### Step 1 — Pull repo + รัน diagnose ⏱ 2 นาที
+**สังเกต 1-2 วัน:** ถ้ายังหาย → ทำ §2 (SD swap) ใน [docs/CCTV_STABILITY.md](CCTV_STABILITY.md)
 
-```bash
-cd <path-to-deye-solar-monitor>
-git pull origin main --ff-only
-bash scripts/cctv-diagnose.sh | pbcopy
-```
+### งาน (ข) Telegram alert — รอ user สร้าง bot
 
-→ paste output ลงใน chat ให้ Claude วิเคราะห์ — จะรู้ว่า drop จริงไหม + sleep ไหม + packet loss ไหม
-
-### Step 2 — เร่ง watchdog 5min → 60s ⏱ 1 นาที (ทำเลย, low risk)
-
-```bash
-PLIST=~/Library/LaunchAgents/com.ebci.cctv-watchdog.plist
-cp "$PLIST" "$PLIST.bak"
-plutil -replace StartInterval -integer 60 "$PLIST"
-launchctl bootout "gui/$UID/com.ebci.cctv-watchdog" 2>/dev/null
-launchctl bootstrap "gui/$UID" "$PLIST"
-plutil -extract StartInterval raw "$PLIST"   # ต้องขึ้น 60
-```
-
-**ผล:** downtime สูงสุด 5 นาที → 1 นาที (ลด 5 เท่า)
-
-**Rollback ถ้าพัง:**
-```bash
-mv "$PLIST.bak" "$PLIST"
-launchctl bootout "gui/$UID/com.ebci.cctv-watchdog"
-launchctl bootstrap "gui/$UID" "$PLIST"
-```
-
-### Step 3 — สังเกต 1-2 วัน ก่อนทำ §2 (SD swap)
-
-หลัง Step 2 ใช้ dashboard ปกติ 1-2 วัน:
-- ถ้านิ่งขึ้นชัด ✅ จบ — รัน diagnose อีกรอบยืนยัน drop count ลดลง
-- ถ้ายังหายบ่อย → ทำ Step 4
-
-### Step 4 — Switch HD → SD (ถ้า Step 2 ไม่พอ)
-
-```bash
-# Backup
-cp ~/.config/go2rtc/go2rtc.yaml ~/.config/go2rtc/go2rtc.yaml.bak
-
-# แก้ stream1 → stream2 ใน source ของ tapo:
-nano ~/.config/go2rtc/go2rtc.yaml
-# เปลี่ยน  rtsp://...:554/stream1   →   rtsp://...:554/stream2
-
-launchctl kickstart -k gui/$UID/com.go2rtc
-sleep 3
-curl -s http://localhost:1984/api/streams | python3 -m json.tool
-```
-
-ภาพคุณภาพต่ำลง (640×360 vs 1920×1080) แต่ stable ขึ้นมาก
-รายละเอียด trade-off ดู [docs/CCTV_STABILITY.md §2](CCTV_STABILITY.md)
-
-### Step 5 — ยังไม่นิ่ง?
-
-ดู [docs/CCTV_STABILITY.md](CCTV_STABILITY.md) §3 (tuning hls config) หรือ §4 (WebRTC) ปรึกษา Claude
+ดู §0.0 ข้างล่าง — code ลงไว้แล้ว รอแค่ Bot Token + Chat ID
 
 ---
 
