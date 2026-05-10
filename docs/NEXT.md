@@ -20,9 +20,33 @@
 
 **สังเกต 1-2 วัน:** ถ้ายังหาย → ทำ §2 (SD swap) ใน [docs/CCTV_STABILITY.md](CCTV_STABILITY.md)
 
-### งาน (ข) Telegram alert — รอ user สร้าง bot
+### งาน (ข) Telegram alert — ✅ live แล้ว
 
-ดู §0.0 ข้างล่าง — code ลงไว้แล้ว รอแค่ Bot Token + Chat ID
+| ขั้น | สถานะ |
+|---|---|
+| สร้าง bot `@Solar725Sys_bot` (display "725 SolarSystem") | ✅ |
+| Vercel envs `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` / `CRON_SECRET` (encrypted, all 3 envs) | ✅ |
+| Production deploy (commit `93c37c6`) | ✅ |
+| Vercel cron section ลบ (Hobby plan limit) | ✅ |
+| Mac mini LaunchAgent `com.ebci.solar-alert` (StartInterval 1800s) | ✅ loaded |
+| `/Users/pondm1/cctv-scripts/solar-alert-tick.sh` + `.solar-alert-secret` (mode 600) | ✅ |
+| Test endpoint (Bearer) → response `{ok:true, skipped:"outside daylight window"}` | ✅ |
+
+**พรุ่งนี้ 07:30 BKK** → message แรก จะส่งมาทาง Telegram ของปอนด์
+
+ถ้าอยาก test ทันทีก่อนรอกลางวัน:
+```bash
+# Lower threshold to 0.1 kW temporarily
+echo "0.1" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production --force
+# Override end time to 23:59
+echo "23:59" | npx vercel env add SOLAR_ALERT_TIME_END production --force
+npx vercel deploy --prod --yes
+# Tick manually
+SECRET=$(cat ~/cctv-scripts/.solar-alert-secret)
+curl -H "Authorization: Bearer $SECRET" \
+  https://monitor-solar-inverter-deye-battery.vercel.app/api/cron/solar-threshold
+# revert ค่าเดิมหลัง test
+```
 
 ---
 
