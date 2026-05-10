@@ -1,6 +1,6 @@
 # Solar Production Alerts (Telegram)
 
-ส่ง **status update ทุก 30 นาที** ช่วงกลางวัน (BKK 06:00–19:00) — แต่ละข้อความบอกว่ากำลังผลิตอยู่เท่าไหร่ + เกินหรือต่ำกว่า threshold (default 2.5 kW)
+ส่ง **status update ทุก 30 นาที** ช่วงกลางวัน (BKK 07:30–16:30) — แต่ละข้อความบอกว่ากำลังผลิตอยู่เท่าไหร่ + เกินหรือต่ำกว่า threshold (default 2.5 kW)
 
 ## ภาพรวม
 
@@ -11,7 +11,7 @@ Vercel Cron (every 30 min, all UTC hours)
 GET /api/cron/solar-threshold
    │ (verify CRON_SECRET)
    ▼
-Daylight check: Bangkok hour ∈ [6, 19)?
+Daylight check: Bangkok time ∈ [07:30, 16:30]?
    │   ├─ no → skip (return ok+skipped)
    │   └─ yes
    ▼
@@ -21,7 +21,7 @@ getSolarOverview() จาก Deye API
 ```
 
 **ส่งเสมอช่วงกลางวัน** ไม่ว่าเกินหรือต่ำกว่า — ข้อความบอกสถานะเอง
-~28 messages/วัน ในช่วง 6 AM - 7 PM (กลางคืน solar = 0 เลย skip)
+~19 messages/วัน ในช่วง 07:30–16:30 (นอกช่วงนี้ skip)
 
 ---
 
@@ -161,11 +161,14 @@ echo "3.0" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production --force
 ```
 
 ### เปลี่ยนช่วงเวลากลางวัน
-default: BKK 06:00–19:00 (cron ที่ออกนอกช่วงนี้จะ skip)
-ถ้าอยากแคบลง เช่น 09:00–17:00:
+default: BKK 07:30–16:30 (cron ที่ออกนอกช่วงนี้จะ skip)
+รองรับ format `HH:MM` หรือ `H` (เลขชั่วโมงเต็ม):
 ```bash
-echo "9"  | npx vercel env add SOLAR_ALERT_HOUR_START production --force
-echo "17" | npx vercel env add SOLAR_ALERT_HOUR_END   production --force
+echo "08:00" | npx vercel env add SOLAR_ALERT_TIME_START production --force
+echo "17:30" | npx vercel env add SOLAR_ALERT_TIME_END   production --force
+# หรือเลขชั่วโมงเต็ม:
+echo "9"     | npx vercel env add SOLAR_ALERT_TIME_START production --force
+echo "17"    | npx vercel env add SOLAR_ALERT_TIME_END   production --force
 ```
 
 ### ลด/เพิ่มความถี่
@@ -201,7 +204,7 @@ curl -H "Authorization: Bearer $SECRET" \
 | 401 จาก curl test | Bearer token ไม่ตรง — pull env ใหม่ `npx vercel env pull` |
 | ข้อความไม่มี markdown formatting | parse_mode "Markdown" — escape `_*[]` ใน text ถ้ามี |
 | ส่งทุก 30 นาที รำคาญ | แก้ vercel.json เป็น `0 * * * *` (ทุกชั่วโมง) หรือ `0 */2 * * *` (ทุก 2 ชม.) |
-| ไม่อยากเห็นข้อความตอน solar = 0 ตอนค่ำ | เปลี่ยน `SOLAR_ALERT_HOUR_END` จาก 19 → 17 |
+| ไม่อยากเห็นข้อความตอน solar = 0 ตอนค่ำ | เปลี่ยน `SOLAR_ALERT_TIME_END` ให้แคบลง เช่น `15:30` |
 | อยาก mute ตอนกลางคืน | Telegram client → silence chat กับ bot ตอนนอน |
 
 ---

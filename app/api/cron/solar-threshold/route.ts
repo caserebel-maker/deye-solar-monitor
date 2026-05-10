@@ -1,8 +1,8 @@
 // Vercel Cron — periodic Telegram status update
 //
 // Schedule: every 30 min (configured in vercel.json)
-//   - กลางวัน Bangkok 06:00-19:00 → ส่ง status update พร้อม indicator ▲/▼ vs threshold
-//   - กลางคืน → skip (solar = 0, ไม่มีอะไรให้รายงาน)
+//   - กลางวัน Bangkok 07:30–16:30 (inclusive) → ส่ง status update พร้อม indicator ▲/▼ vs threshold
+//   - นอกช่วง → skip (solar น้อย/0, ไม่มีอะไรให้รายงาน)
 //
 // Auth: Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`
 //   ถ้า CRON_SECRET ไม่ตรง → 401
@@ -17,10 +17,10 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const DEFAULT_THRESHOLD_KW = 2.5;
-const DEFAULT_DAYLIGHT_START_HR = 6;   // Bangkok time
-const DEFAULT_DAYLIGHT_END_HR = 19;    // Bangkok time (exclusive — last fire at 18:30)
+const DEFAULT_START_MINUTES = 7 * 60 + 30;   // 07:30 Bangkok
+const DEFAULT_END_MINUTES = 16 * 60 + 30;    // 16:30 Bangkok (inclusive)
 const PROD_URL = "https://monitor-solar-inverter-deye-battery.vercel.app";
-const BANGKOK_OFFSET_HRS = 7;
+const BANGKOK_OFFSET_MIN = 7 * 60;
 
 function getThreshold(): number {
   const raw = process.env.SOLAR_ALERT_THRESHOLD_KW;
@@ -29,19 +29,43 @@ function getThreshold(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_THRESHOLD_KW;
 }
 
+// "HH:MM" → minutes since midnight. Also accepts "HH" or "HH.HH".
+// ส่งกลับ null ถ้า parse ไม่ได้ — caller ใช้ default
+function parseTimeToMinutes(value: string | undefined): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const colon = /^(\d{1,2}):(\d{1,2})$/.exec(trimmed);
+  if (colon) {
+    const h = Number(colon[1]);
+    const m = Number(colon[2]);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) return h * 60 + m;
+    return null;
+  }
+  const decimal = Number(trimmed);
+  if (Number.isFinite(decimal) && decimal >= 0 && decimal <= 24) {
+    return Math.round(decimal * 60);
+  }
+  return null;
+}
+
+function formatMinutes(total: number): string {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 function getDaylightWindow(): { start: number; end: number } {
-  const start = Number(process.env.SOLAR_ALERT_HOUR_START ?? DEFAULT_DAYLIGHT_START_HR);
-  const end = Number(process.env.SOLAR_ALERT_HOUR_END ?? DEFAULT_DAYLIGHT_END_HR);
   return {
-    start: Number.isFinite(start) ? start : DEFAULT_DAYLIGHT_START_HR,
-    end: Number.isFinite(end) ? end : DEFAULT_DAYLIGHT_END_HR,
+    start: parseTimeToMinutes(process.env.SOLAR_ALERT_TIME_START) ?? DEFAULT_START_MINUTES,
+    end: parseTimeToMinutes(process.env.SOLAR_ALERT_TIME_END) ?? DEFAULT_END_MINUTES,
   };
 }
 
-function bangkokHour(): number {
+function bangkokMinutes(): number {
   // Vercel runs UTC. Convert to Bangkok (UTC+7) without DST drama.
-  const utcHour = new Date().getUTCHours();
-  return (utcHour + BANGKOK_OFFSET_HRS) % 24;
+  const now = new Date();
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  return (utcMinutes + BANGKOK_OFFSET_MIN) % (24 * 60);
 }
 
 function authorize(req: Request): { ok: true } | { ok: false; reason: string } {
@@ -97,16 +121,16 @@ export async function GET(req: Request) {
 
   const threshold = getThreshold();
   const { start, end } = getDaylightWindow();
-  const hour = bangkokHour();
+  const minutes = bangkokMinutes();
   const url = new URL(req.url);
   const force = url.searchParams.get("force") === "1";
 
-  if (!force && (hour < start || hour >= end)) {
+  if (!force && (minutes < start || minutes > end)) {
     return NextResponse.json({
       ok: true,
       skipped: "outside daylight window",
-      bangkokHour: hour,
-      window: `${start}:00–${end}:00`,
+      bangkokTime: formatMinutes(minutes),
+      window: `${formatMinutes(start)}–${formatMinutes(end)}`,
     });
   }
 
@@ -133,7 +157,7 @@ export async function GET(req: Request) {
       power,
       threshold,
       state: power >= threshold ? "over" : "under",
-      bangkokHour: hour,
+      bangkokTime: formatMinutes(minutes),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unexpected error";
