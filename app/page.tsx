@@ -23,11 +23,6 @@ import {
   CalendarDays,
   Camera,
   ChartSpline,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Square,
   Cloud,
   CloudDrizzle,
   CloudFog,
@@ -606,68 +601,7 @@ function CctvCard() {
       <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
         {hlsUrl ? <CctvLivePlayer key={restartCount} src={hlsUrl} /> : <CctvPlaceholder />}
       </div>
-      {hlsUrl && <CctvPtzControls />}
     </section>
-  );
-}
-
-function CctvPtzControls() {
-  const [pending, setPending] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const send = useCallback(async (direction: string, duration_ms = 400) => {
-    setPending(direction);
-    setError(null);
-    try {
-      const res = await fetch("/api/cctv/ptz", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction, duration_ms }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error ?? `HTTP ${res.status}`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "PTZ command failed");
-    } finally {
-      setPending(null);
-    }
-  }, []);
-
-  const btn = (label: string, dir: string, Icon: typeof ChevronUp, classes = "") =>
-    createElement(
-      "button",
-      {
-        type: "button",
-        "aria-label": label,
-        disabled: pending !== null,
-        onClick: () => send(dir),
-        className: `flex h-10 w-10 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-white/82 transition hover:bg-white/12 hover:text-white disabled:opacity-40 ${classes}`,
-      },
-      createElement(Icon, { className: "h-5 w-5" }),
-    );
-
-  return (
-    <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
-      <div>
-        <p className="text-[10px] font-medium uppercase tracking-[0.18em] eyebrow-text-inset">Pan / Tilt · Lens B</p>
-        <p className="mt-0.5 text-[11px] text-white/55">
-          {error ? <span className="text-rose-300">{error}</span> : pending ? `Moving ${pending}…` : "ขยับเลนส์ wide · ดู feed ใน Tapo app"}
-        </p>
-      </div>
-      <div className="grid grid-cols-3 gap-1">
-        <span />
-        {btn("ขยับขึ้น", "up", ChevronUp)}
-        <span />
-        {btn("ซ้าย", "left", ChevronLeft)}
-        {btn("หยุด", "stop", Square, "text-rose-300")}
-        {btn("ขวา", "right", ChevronRight)}
-        <span />
-        {btn("ขยับลง", "down", ChevronDown)}
-        <span />
-      </div>
-    </div>
   );
 }
 
