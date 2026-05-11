@@ -547,10 +547,15 @@ function CctvCard() {
   const [restartCount, setRestartCount] = useState(0);
   const [restarting, setRestarting] = useState(false);
 
+  // Prefer go2rtc's fragmented-MP4 endpoint over HLS: the HLS module is
+  // currently returning 404 for segment.ts even while the producer is
+  // streaming bytes fine over stream.mp4. <video src=…stream.mp4> plays
+  // the live fragmented MP4 natively in every modern browser, no hls.js.
   const hlsUrl = useMemo(() => {
     if (!baseUrl) return undefined;
     try {
       const u = new URL(baseUrl);
+      u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
       u.searchParams.set("src", "tapo");
       return u.toString();
     } catch {
@@ -708,13 +713,14 @@ function CctvLivePlayer({ src }: { src: string }) {
 
     const handlePlaying = () => setStatus("live");
     const handleStalled = () => setStatus("loading");
+    const handleError = () => {
+      setStatus("error");
+      const code = video.error?.code;
+      setErrorMessage(code ? `media error ${code}` : "stream offline");
+    };
     video.addEventListener("playing", handlePlaying);
     video.addEventListener("stalled", handleStalled);
-
-    let cleanup = () => {
-      video.removeEventListener("playing", handlePlaying);
-      video.removeEventListener("stalled", handleStalled);
-    };
+    video.addEventListener("error", handleError);
 
     const tryPlay = () => {
       // muted + playsInline lets Chromium-family browsers autoplay; the
@@ -723,134 +729,63 @@ function CctvLivePlayer({ src }: { src: string }) {
       video.play().catch(() => {});
     };
 
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src;
-      video.addEventListener("loadedmetadata", tryPlay, { once: true });
-      tryPlay();
-      return cleanup;
-    }
+    // go2rtc /api/stream.mp4 is fragmented MP4 — every modern browser
+    // (Chromium, Safari, Firefox) plays it natively via <video src>.
+    // No hls.js needed.
+    video.src = src;
+    video.addEventListener("loadedmetadata", tryPlay, { once: true });
+    tryPlay();
 
-    let cancelled = false;
-    let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
-    let stallWatchdog: ReturnType<typeof setInterval> | null = null;
-    let mediaRecoveryAttempts = 0;
-
-    import("hls.js").then(({ default: Hls }) => {
-      if (cancelled) return;
-      if (!Hls.isSupported()) {
-        setStatus("error");
-        setErrorMessage("Browser ไม่รองรับ HLS");
+    // Silent-stall watchdog: if currentTime stops advancing while the
+    // video is supposed to be playing, force a reload of the source.
+    // Second consecutive stall also POSTs /api/restart on go2rtc.
+    let consecutiveStalls = 0;
+    let lastSeenTime = video.currentTime;
+    let lastAdvanceMs = Date.now();
+    const stallWatchdog = setInterval(() => {
+      if (video.paused || video.ended || video.readyState < 2) {
+        lastSeenTime = video.currentTime;
+        lastAdvanceMs = Date.now();
         return;
       }
+      if (video.currentTime > lastSeenTime + 0.05) {
+        lastSeenTime = video.currentTime;
+        lastAdvanceMs = Date.now();
+        consecutiveStalls = 0;
+        return;
+      }
+      if (Date.now() - lastAdvanceMs < 6000) return;
 
-      const buildHls = () => {
-        const instance = new Hls({
-          lowLatencyMode: true,
-          liveSyncDurationCount: 2,
-          // Be patient with brief Funnel/RTSP hiccups before declaring fatal
-          fragLoadingMaxRetry: 6,
-          manifestLoadingMaxRetry: 6,
-          levelLoadingMaxRetry: 6,
-        });
-        instance.loadSource(src);
-        instance.attachMedia(video);
-        instance.on(Hls.Events.MANIFEST_PARSED, tryPlay);
-        instance.on(Hls.Events.ERROR, (_event, data) => {
-          if (!data.fatal) return;
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            setStatus("loading");
-            setErrorMessage(null);
-            instance.startLoad();
-            return;
-          }
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveryAttempts < 2) {
-            mediaRecoveryAttempts += 1;
-            setStatus("loading");
-            setErrorMessage(null);
-            instance.recoverMediaError();
-            return;
-          }
-          // Unrecoverable — tear down and rebuild after a short backoff
-          setStatus("loading");
-          setErrorMessage(`reconnecting… (${data.details ?? data.type})`);
-          instance.destroy();
-          recoveryTimer = setTimeout(() => {
-            if (cancelled) return;
-            mediaRecoveryAttempts = 0;
-            currentHls = buildHls();
-            armStallWatchdog();
-          }, 4000);
-        });
-        return instance;
-      };
-
-      let currentHls = buildHls();
-
-      // Silent-stall detector: hls.js does not always fire a fatal error
-      // when the producer stops emitting segments. Poll currentTime; if the
-      // video should be playing but the playhead has not moved for 6s,
-      // tear down and rebuild — and on the second consecutive stall, also
-      // POST /api/restart on the go2rtc origin to kick the producer.
-      const armStallWatchdog = () => {
-        if (stallWatchdog) clearInterval(stallWatchdog);
-        let lastSeenTime = video.currentTime;
-        let lastAdvanceMs = Date.now();
-        let consecutiveRebuilds = 0;
-        stallWatchdog = setInterval(() => {
-          if (cancelled || video.paused || video.ended || video.readyState < 2) {
-            lastSeenTime = video.currentTime;
-            lastAdvanceMs = Date.now();
-            return;
-          }
-          if (video.currentTime > lastSeenTime + 0.05) {
-            lastSeenTime = video.currentTime;
-            lastAdvanceMs = Date.now();
-            consecutiveRebuilds = 0;
-            return;
-          }
-          if (Date.now() - lastAdvanceMs < 6000) return;
-
-          consecutiveRebuilds += 1;
-          setStatus("loading");
-          setErrorMessage(`reconnecting… (stalled${consecutiveRebuilds > 1 ? ` ×${consecutiveRebuilds}` : ""})`);
-          currentHls.destroy();
-          if (consecutiveRebuilds >= 2) {
-            // Producer is likely dead — kick go2rtc once
-            try {
-              const restartUrl = `${new URL(src).origin}/api/restart`;
-              fetch(restartUrl, { method: "POST", mode: "no-cors" }).catch(() => {});
-            } catch {}
-          }
-          recoveryTimer = setTimeout(() => {
-            if (cancelled) return;
-            mediaRecoveryAttempts = 0;
-            currentHls = buildHls();
-            armStallWatchdog();
-          }, 2500);
-          if (stallWatchdog) {
-            clearInterval(stallWatchdog);
-            stallWatchdog = null;
-          }
-        }, 2000);
-      };
-      armStallWatchdog();
-
-      const previousCleanup = cleanup;
-      cleanup = () => {
-        previousCleanup();
-        if (recoveryTimer) clearTimeout(recoveryTimer);
-        if (stallWatchdog) clearInterval(stallWatchdog);
-        currentHls.destroy();
-      };
-    }).catch((err) => {
-      if (cancelled) return;
-      setStatus("error");
-      setErrorMessage(err instanceof Error ? err.message : "Failed to load player");
-    });
+      consecutiveStalls += 1;
+      setStatus("loading");
+      setErrorMessage(`reconnecting… (stalled${consecutiveStalls > 1 ? ` ×${consecutiveStalls}` : ""})`);
+      if (consecutiveStalls >= 2) {
+        // Producer is likely wedged — kick go2rtc once
+        try {
+          const restartUrl = `${new URL(src).origin}/api/restart`;
+          fetch(restartUrl, { method: "POST", mode: "no-cors" }).catch(() => {});
+        } catch {}
+      }
+      // Force the browser to re-open the MP4 source
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+      window.setTimeout(() => {
+        video.src = src;
+        tryPlay();
+        lastSeenTime = video.currentTime;
+        lastAdvanceMs = Date.now();
+      }, 2500);
+    }, 2000);
 
     return () => {
-      cancelled = true;
-      cleanup();
+      clearInterval(stallWatchdog);
+      video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("stalled", handleStalled);
+      video.removeEventListener("error", handleError);
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
     };
   }, [src]);
 
@@ -861,7 +796,7 @@ function CctvLivePlayer({ src }: { src: string }) {
           <span className={`h-2 w-2 rounded-full ${status === "live" ? "bg-emerald-400" : status === "error" ? "bg-rose-400" : "bg-amber-300"} ${status === "live" ? "animate-pulse" : ""}`} />
           {status === "live" ? "Live" : status === "error" ? "Stream offline" : "Connecting…"}
         </span>
-        <span>HLS</span>
+        <span>MP4</span>
       </div>
       <div className="relative flex flex-1 items-center justify-center bg-slate-950">
         <video
