@@ -716,12 +716,15 @@ function CctvLivePlayer({ src }: { src: string }) {
       // moov atom (~3s), so the browser stops at "ended" even though new
       // moof segments are still coming over the chunked HTTP body. Yank
       // the src and reassign to force a fresh request — that pulls a new
-      // 3s window from the live edge.
+      // 3s window from the live edge. Add a cache-buster so the browser
+      // doesn't dedupe against the just-finished response.
       try {
+        const u = new URL(src);
+        u.searchParams.set("_t", String(Date.now()));
         video.pause();
         video.removeAttribute("src");
         video.load();
-        video.src = src;
+        video.src = u.toString();
         video.play().catch(() => {});
       } catch {
         /* ignore — next stall watchdog tick will retry */
@@ -803,29 +806,27 @@ function CctvLivePlayer({ src }: { src: string }) {
         consecutiveStalls = 0;
         return;
       }
-      if (Date.now() - lastAdvanceMs < 6000) return;
+      // Tight stall threshold: the moov-declared MP4 is only ~3s, so a
+      // 2-second silence already means the browser is sitting on a dead
+      // playhead. Reload immediately — no 2.5s back-off — and only escalate
+      // to a go2rtc restart after several consecutive stalls.
+      if (Date.now() - lastAdvanceMs < 2000) return;
 
       consecutiveStalls += 1;
       setStatus("loading");
-      setErrorMessage(`reconnecting… (stalled${consecutiveStalls > 1 ? ` ×${consecutiveStalls}` : ""})`);
-      if (consecutiveStalls >= 2) {
-        // Producer is likely wedged — kick go2rtc once
+      setErrorMessage(`reconnecting${consecutiveStalls > 1 ? ` ×${consecutiveStalls}` : "…"}`);
+      if (consecutiveStalls >= 4) {
+        // Browser keeps reloading but the producer side is wedged — kick go2rtc
         try {
           const restartUrl = `${new URL(src).origin}/api/restart`;
           fetch(restartUrl, { method: "POST", mode: "no-cors" }).catch(() => {});
         } catch {}
+        consecutiveStalls = 0;
       }
-      // Force the browser to re-open the MP4 source
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
-      window.setTimeout(() => {
-        video.src = src;
-        tryPlay();
-        lastSeenTime = video.currentTime;
-        lastAdvanceMs = Date.now();
-      }, 2500);
-    }, 2000);
+      reloadSrc();
+      lastSeenTime = video.currentTime;
+      lastAdvanceMs = Date.now();
+    }, 1000);
 
     return () => {
       clearInterval(stallWatchdog);
