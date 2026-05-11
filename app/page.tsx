@@ -544,6 +544,8 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
 
 function CctvCard() {
   const baseUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL;
+  const [restartCount, setRestartCount] = useState(0);
+  const [restarting, setRestarting] = useState(false);
 
   const hlsUrl = useMemo(() => {
     if (!baseUrl) return undefined;
@@ -556,6 +558,20 @@ function CctvCard() {
     }
   }, [baseUrl]);
 
+  const restartStream = useCallback(async () => {
+    if (!baseUrl || restarting) return;
+    setRestarting(true);
+    try {
+      const origin = new URL(baseUrl).origin;
+      await fetch(`${origin}/api/restart`, { method: "POST", mode: "no-cors" }).catch(() => {});
+      // Give go2rtc a moment to reconnect to RTSP before we tear down hls.js
+      await new Promise((resolve) => setTimeout(resolve, 7000));
+      setRestartCount((n) => n + 1);
+    } finally {
+      setRestarting(false);
+    }
+  }, [baseUrl, restarting]);
+
   return (
     <section className="glass premium-panel flex min-h-[470px] flex-col rounded-3xl p-5">
       <div className="flex items-center justify-between">
@@ -564,12 +580,26 @@ function CctvCard() {
           <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo CCTV Monitor</h2>
           <p className="mt-1 text-[11px] font-medium text-slate-500">Lens A · close-up</p>
         </div>
-        <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
-          <Camera className="h-5 w-5 text-indigo-500" />
+        <div className="flex items-center gap-2">
+          {hlsUrl && (
+            <button
+              aria-label="Restart stream"
+              onClick={restartStream}
+              disabled={restarting}
+              type="button"
+              className="rounded-2xl border border-indigo-100 bg-white/55 p-2 text-indigo-500 transition disabled:cursor-wait disabled:opacity-50"
+              title="Restart stream (kicks go2rtc)"
+            >
+              <RefreshCw className={`h-5 w-5 ${restarting ? "animate-spin" : ""}`} />
+            </button>
+          )}
+          <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
+            <Camera className="h-5 w-5 text-indigo-500" />
+          </div>
         </div>
       </div>
       <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
-        {hlsUrl ? <CctvLivePlayer src={hlsUrl} /> : <CctvPlaceholder />}
+        {hlsUrl ? <CctvLivePlayer key={restartCount} src={hlsUrl} /> : <CctvPlaceholder />}
       </div>
       {hlsUrl && <CctvPtzControls />}
     </section>
