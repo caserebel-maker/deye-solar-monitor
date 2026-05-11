@@ -697,175 +697,38 @@ function CctvPlaceholder() {
   );
 }
 
-type CctvStatus = "loading" | "live" | "error";
-
 function CctvLivePlayer({ src }: { src: string }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [status, setStatus] = useState<CctvStatus>("loading");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    setStatus("loading");
-    setErrorMessage(null);
-
-    const reloadSrc = () => {
-      // The fragmented MP4 from go2rtc declares a finite duration in its
-      // moov atom (~3s), so the browser stops at "ended" even though new
-      // moof segments are still coming over the chunked HTTP body. Yank
-      // the src and reassign to force a fresh request — that pulls a new
-      // 3s window from the live edge. Add a cache-buster so the browser
-      // doesn't dedupe against the just-finished response.
-      try {
-        const u = new URL(src);
-        u.searchParams.set("_t", String(Date.now()));
-        video.pause();
-        video.removeAttribute("src");
-        video.load();
-        video.src = u.toString();
-        video.play().catch(() => {});
-      } catch {
-        /* ignore — next stall watchdog tick will retry */
-      }
-    };
-
-    const handlePlaying = () => setStatus("live");
-    const handleStalled = () => setStatus("loading");
-    const handleEnded = () => {
-      // go2rtc MP4 "ends" every ~3s when the moov atom's declared duration
-      // is reached; reload immediately so playback feels continuous.
-      reloadSrc();
-    };
-    const handleError = () => {
-      setStatus("error");
-      const code = video.error?.code;
-      setErrorMessage(code ? `media error ${code}` : "stream offline");
-    };
-    video.addEventListener("playing", handlePlaying);
-    video.addEventListener("stalled", handleStalled);
-    video.addEventListener("ended", handleEnded);
-    video.addEventListener("error", handleError);
-
-    const tryPlay = () => {
-      // muted + playsInline lets Chromium-family browsers autoplay; the
-      // catch is a no-op so the player stays paused with controls until
-      // the user taps if the browser policy still blocks us.
-      video.play().catch(() => {});
-    };
-
-    // Jump to the live edge so the user is watching ~now, not the start
-    // of whatever the browser has buffered. Called on initial canplay
-    // and periodically by the watchdog when drift > 2.5s.
-    const LIVE_TAIL_SECONDS = 0.6;
-    const seekToLiveEdge = () => {
-      if (video.buffered.length === 0) return;
-      const liveEdge = video.buffered.end(video.buffered.length - 1);
-      const target = Math.max(0, liveEdge - LIVE_TAIL_SECONDS);
-      if (target - video.currentTime > 0.5) {
-        try {
-          video.currentTime = target;
-        } catch {
-          /* seek can fail mid-load — ignore */
-        }
-      }
-    };
-    video.addEventListener("canplay", seekToLiveEdge);
-
-    // go2rtc /api/stream.mp4 is fragmented MP4 — every modern browser
-    // (Chromium, Safari, Firefox) plays it natively via <video src>.
-    // No hls.js needed.
-    video.src = src;
-    video.addEventListener("loadedmetadata", tryPlay, { once: true });
-    tryPlay();
-
-    // Silent-stall watchdog: if currentTime stops advancing while the
-    // video is supposed to be playing, force a reload of the source.
-    // Second consecutive stall also POSTs /api/restart on go2rtc.
-    let consecutiveStalls = 0;
-    let lastSeenTime = video.currentTime;
-    let lastAdvanceMs = Date.now();
-    const stallWatchdog = setInterval(() => {
-      if (video.paused || video.ended || video.readyState < 2) {
-        lastSeenTime = video.currentTime;
-        lastAdvanceMs = Date.now();
-        return;
-      }
-      // Keep clamping to the live edge — fragmented MP4 buffers grow
-      // unbounded and the playhead would drift further behind every minute.
-      if (video.buffered.length > 0) {
-        const liveEdge = video.buffered.end(video.buffered.length - 1);
-        if (liveEdge - video.currentTime > 2.5) {
-          seekToLiveEdge();
-        }
-      }
-      if (video.currentTime > lastSeenTime + 0.05) {
-        lastSeenTime = video.currentTime;
-        lastAdvanceMs = Date.now();
-        consecutiveStalls = 0;
-        return;
-      }
-      // Tight stall threshold: the moov-declared MP4 is only ~3s, so a
-      // 2-second silence already means the browser is sitting on a dead
-      // playhead. Reload immediately — no 2.5s back-off — and only escalate
-      // to a go2rtc restart after several consecutive stalls.
-      if (Date.now() - lastAdvanceMs < 2000) return;
-
-      consecutiveStalls += 1;
-      setStatus("loading");
-      setErrorMessage(`reconnecting${consecutiveStalls > 1 ? ` ×${consecutiveStalls}` : "…"}`);
-      if (consecutiveStalls >= 4) {
-        // Browser keeps reloading but the producer side is wedged — kick go2rtc
-        try {
-          const restartUrl = `${new URL(src).origin}/api/restart`;
-          fetch(restartUrl, { method: "POST", mode: "no-cors" }).catch(() => {});
-        } catch {}
-        consecutiveStalls = 0;
-      }
-      reloadSrc();
-      lastSeenTime = video.currentTime;
-      lastAdvanceMs = Date.now();
-    }, 1000);
-
-    return () => {
-      clearInterval(stallWatchdog);
-      video.removeEventListener("playing", handlePlaying);
-      video.removeEventListener("stalled", handleStalled);
-      video.removeEventListener("ended", handleEnded);
-      video.removeEventListener("error", handleError);
-      video.removeEventListener("canplay", seekToLiveEdge);
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
-    };
+  // Delegate the actual playback to go2rtc's bundled stream.html, which
+  // ships a `<video-stream>` web component that handles MSE + WebSocket +
+  // automatic reconnect properly. Wrestling with native <video src=mp4>
+  // (moov-atom finite duration, ended-event nuances, segment cache-busting)
+  // wasted hours; the upstream player is what go2rtc was designed for.
+  const playerUrl = useMemo(() => {
+    try {
+      const u = new URL(src);
+      const stream = u.searchParams.get("src") ?? "tapo";
+      return `${u.origin}/stream.html?src=${encodeURIComponent(stream)}&mode=mse`;
+    } catch {
+      return src;
+    }
   }, [src]);
 
   return (
     <>
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
         <span className="inline-flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${status === "live" ? "bg-emerald-400" : status === "error" ? "bg-rose-400" : "bg-amber-300"} ${status === "live" ? "animate-pulse" : ""}`} />
-          {status === "live" ? "Live" : status === "error" ? "Stream offline" : "Connecting…"}
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+          Live
         </span>
-        <span>MP4</span>
+        <span>MSE</span>
       </div>
       <div className="relative flex flex-1 items-center justify-center bg-slate-950">
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          playsInline
-          className="h-full w-full bg-black object-contain"
+        <iframe
+          src={playerUrl}
+          title="Tapo live stream"
+          allow="autoplay"
+          className="h-full w-full border-0 bg-black"
         />
-        {status === "error" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
-            <Camera className="h-9 w-9 text-rose-300" />
-            <p className="mt-3 text-sm font-semibold text-white">Stream offline</p>
-            {errorMessage && <p className="mt-1 max-w-xs text-xs text-white/60">{errorMessage}</p>}
-            <p className="mt-2 max-w-xs text-[11px] text-white/45">เช็ค go2rtc + Tailscale Funnel ที่บ้าน — ดู docs/CCTV_SETUP.md</p>
-          </div>
-        )}
       </div>
     </>
   );
