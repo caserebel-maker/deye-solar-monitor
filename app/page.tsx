@@ -1174,9 +1174,9 @@ export default function DashboardPage() {
         </div>
       )}
       <main className="mx-auto max-w-[1860px]" id="dashboard-top">
-        <header className="mb-3 flex flex-col gap-2 rounded-[1.4rem] border border-white/60 bg-white/38 px-3 py-2.5 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl sm:mb-4 sm:gap-3 sm:rounded-3xl sm:px-4 sm:py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
+        <header className="mb-3 flex flex-col gap-2 rounded-[1.4rem] border border-white/60 bg-white/38 px-3 py-2.5 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl sm:mb-4 sm:flex-row sm:items-center sm:gap-3 sm:rounded-3xl sm:px-4 sm:py-3 sm:justify-between">
+          <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3 sm:flex-wrap lg:flex-nowrap lg:gap-4">
+            <div className="flex items-center gap-2 sm:shrink-0">
               <h1 className="text-2xl font-semibold leading-none text-slate-950 sm:text-xl">725</h1>
               <button
                 aria-label="Reload page"
@@ -1196,19 +1196,19 @@ export default function DashboardPage() {
               </button>
               <span className="hidden rounded-full bg-white/50 px-3 py-1 text-sm text-slate-500 sm:inline-flex">10kWp</span>
             </div>
-            <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 text-xs text-slate-500 sm:flex sm:flex-wrap sm:gap-3 sm:text-sm">
-              <span className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 ${statusStyle(data.overview.status)}`}>
+            <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 text-xs text-slate-500 sm:mt-0 sm:flex sm:flex-wrap sm:gap-3 sm:text-sm lg:min-w-0 lg:flex-nowrap">
+              <span className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1 ${statusStyle(data.overview.status)}`}>
                 <span className="pulse-dot h-2 w-2 rounded-full bg-emerald-400 text-emerald-400" />
                 {data.overview.status}
               </span>
               <span className="min-w-0 truncate">Online Inverter 1 · {sourceLabel(data.overview.source)}</span>
-              <span className="col-span-2 truncate sm:col-span-1">Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
+              <span className="col-span-2 truncate sm:col-span-1 lg:min-w-0">Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
             </div>
             <div className="mt-3 sm:hidden">
               <HeroStats metrics={metrics} />
             </div>
           </div>
-          <nav className="hidden gap-2 overflow-x-auto text-sm font-medium text-slate-600 sm:flex lg:flex">
+          <nav className="hidden shrink-0 gap-2 overflow-x-auto text-sm font-medium text-slate-600 sm:flex lg:flex">
             <button
               aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
               className="inline-flex shrink-0 items-center justify-center rounded-2xl bg-white/42 px-3 py-2 text-slate-600"
