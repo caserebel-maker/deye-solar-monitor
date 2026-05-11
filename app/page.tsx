@@ -729,6 +729,24 @@ function CctvLivePlayer({ src }: { src: string }) {
       video.play().catch(() => {});
     };
 
+    // Jump to the live edge so the user is watching ~now, not the start
+    // of whatever the browser has buffered. Called on initial canplay
+    // and periodically by the watchdog when drift > 2.5s.
+    const LIVE_TAIL_SECONDS = 0.6;
+    const seekToLiveEdge = () => {
+      if (video.buffered.length === 0) return;
+      const liveEdge = video.buffered.end(video.buffered.length - 1);
+      const target = Math.max(0, liveEdge - LIVE_TAIL_SECONDS);
+      if (target - video.currentTime > 0.5) {
+        try {
+          video.currentTime = target;
+        } catch {
+          /* seek can fail mid-load — ignore */
+        }
+      }
+    };
+    video.addEventListener("canplay", seekToLiveEdge);
+
     // go2rtc /api/stream.mp4 is fragmented MP4 — every modern browser
     // (Chromium, Safari, Firefox) plays it natively via <video src>.
     // No hls.js needed.
@@ -747,6 +765,14 @@ function CctvLivePlayer({ src }: { src: string }) {
         lastSeenTime = video.currentTime;
         lastAdvanceMs = Date.now();
         return;
+      }
+      // Keep clamping to the live edge — fragmented MP4 buffers grow
+      // unbounded and the playhead would drift further behind every minute.
+      if (video.buffered.length > 0) {
+        const liveEdge = video.buffered.end(video.buffered.length - 1);
+        if (liveEdge - video.currentTime > 2.5) {
+          seekToLiveEdge();
+        }
       }
       if (video.currentTime > lastSeenTime + 0.05) {
         lastSeenTime = video.currentTime;
@@ -783,6 +809,7 @@ function CctvLivePlayer({ src }: { src: string }) {
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("stalled", handleStalled);
       video.removeEventListener("error", handleError);
+      video.removeEventListener("canplay", seekToLiveEdge);
       video.pause();
       video.removeAttribute("src");
       video.load();
