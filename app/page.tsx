@@ -711,8 +711,30 @@ function CctvLivePlayer({ src }: { src: string }) {
     setStatus("loading");
     setErrorMessage(null);
 
+    const reloadSrc = () => {
+      // The fragmented MP4 from go2rtc declares a finite duration in its
+      // moov atom (~3s), so the browser stops at "ended" even though new
+      // moof segments are still coming over the chunked HTTP body. Yank
+      // the src and reassign to force a fresh request — that pulls a new
+      // 3s window from the live edge.
+      try {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        video.src = src;
+        video.play().catch(() => {});
+      } catch {
+        /* ignore — next stall watchdog tick will retry */
+      }
+    };
+
     const handlePlaying = () => setStatus("live");
     const handleStalled = () => setStatus("loading");
+    const handleEnded = () => {
+      // go2rtc MP4 "ends" every ~3s when the moov atom's declared duration
+      // is reached; reload immediately so playback feels continuous.
+      reloadSrc();
+    };
     const handleError = () => {
       setStatus("error");
       const code = video.error?.code;
@@ -720,6 +742,7 @@ function CctvLivePlayer({ src }: { src: string }) {
     };
     video.addEventListener("playing", handlePlaying);
     video.addEventListener("stalled", handleStalled);
+    video.addEventListener("ended", handleEnded);
     video.addEventListener("error", handleError);
 
     const tryPlay = () => {
@@ -808,6 +831,7 @@ function CctvLivePlayer({ src }: { src: string }) {
       clearInterval(stallWatchdog);
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("stalled", handleStalled);
+      video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
       video.removeEventListener("canplay", seekToLiveEdge);
       video.pause();
@@ -831,7 +855,6 @@ function CctvLivePlayer({ src }: { src: string }) {
           autoPlay
           muted
           playsInline
-          controls
           className="h-full w-full bg-black object-contain"
         />
         {status === "error" && (
