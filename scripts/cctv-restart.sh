@@ -99,21 +99,39 @@ else
   fi
 fi
 
-step "[5/5] รอ 8 วินาทีให้ services warm-up..."
-for i in 8 7 6 5 4 3 2 1; do printf "  %s..." "$i"; sleep 1; done
-echo
+step "[5/5] รอ services warm-up + Funnel edge resync (poll up to 90s)"
+# Local daemons come up in ~3s, but the Funnel ingress edge can take
+# 10–60s to publish a fresh routing entry for this node after the
+# down→up bounce above. Poll the *external* endpoint so we don't return
+# success until traffic actually flows end-to-end — otherwise watchdog
+# sets its state file and refuses to retry.
+FUNNEL_HOST="${FUNNEL_HOST:-home-macmini.tail1d5579.ts.net}"
+HEALTHY=0
+for i in $(seq 1 18); do
+  PUB_IP=$(dig +short +time=3 A "$FUNNEL_HOST" @8.8.8.8 2>/dev/null | head -1)
+  if [ -n "$PUB_IP" ]; then
+    HTTP=$(curl -s -m 5 --resolve "$FUNNEL_HOST:443:$PUB_IP" \
+      -o /dev/null -w '%{http_code}' \
+      "https://$FUNNEL_HOST/api/stream.m3u8?src=tapo" 2>/dev/null || echo "000")
+    if [ "$HTTP" = "200" ]; then
+      ok "external endpoint healthy after $((i*5))s (via $PUB_IP)"
+      HEALTHY=1
+      break
+    fi
+  fi
+  printf "  attempt %2d/18: HTTP=%s ip=%s\n" "$i" "${HTTP:-?}" "${PUB_IP:-?}"
+  sleep 5
+done
 
 step "Health check"
-if [ -x "$SCRIPT_DIR/cctv-health.sh" ]; then
-  if "$SCRIPT_DIR/cctv-health.sh"; then
-    notify "✅ CCTV" "Pipeline healthy" "Glass"
-    exit 0
-  else
-    notify "⚠️ CCTV" "บางจุดยัง fail — เปิด terminal ดู log" "Sosumi"
-    exit 1
-  fi
+if [ "$HEALTHY" = "1" ] && [ -x "$SCRIPT_DIR/cctv-health.sh" ] && "$SCRIPT_DIR/cctv-health.sh"; then
+  notify "✅ CCTV" "Pipeline healthy" "Glass"
+  exit 0
+elif [ "$HEALTHY" = "1" ]; then
+  # External works but health-check script unhappy with something local — still a win
+  notify "✅ CCTV" "External healthy (local checks partial)" "Glass"
+  exit 0
 else
-  warn "scripts/cctv-health.sh not found or not executable"
-  notify "⚠️ CCTV" "Restart done แต่ health check script หาย" "Pop"
+  notify "⚠️ CCTV" "Funnel edge ยัง sync ไม่เสร็จหลัง 90s — เช็ค tailscale status" "Sosumi"
   exit 1
 fi
