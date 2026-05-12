@@ -63,10 +63,18 @@ step "[2/5] tailscaled"
 kick "$TS_LABEL" || true
 sleep 3   # ให้ tailscaled socket พร้อม
 
-step "[3/5] Tailscale up + Funnel"
+step "[3/5] Tailscale down→up + Funnel (forces ingress edge re-sync)"
+# After a Mac mini reboot the Tailscale Funnel control plane may
+# assign a fresh ingress edge IP that doesn't yet have a route back
+# to this node — TLS succeeds but requests hang. A quick down→up
+# re-registers the node and the edge catches up within ~10s.
 if [ -x "$TS_BIN" ] && [ -S "$TS_SOCK" ]; then
+  "$TS_BIN" --socket="$TS_SOCK" down >/dev/null 2>&1
+  sleep 2
   "$TS_BIN" --socket="$TS_SOCK" up --hostname=home-macmini >/dev/null 2>&1 && ok "tailnet up"
+  sleep 3   # give the control plane a moment to publish the new mapping
   "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 "http://localhost:$GO2RTC_PORT" >/dev/null 2>&1 && ok "funnel active on :443 → :$GO2RTC_PORT"
+  "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 --set-path=/control "http://127.0.0.1:$PTZ_PORT" >/dev/null 2>&1 && ok "funnel mount /control → :$PTZ_PORT"
 else
   warn "tailscale binary or socket missing"
 fi
