@@ -51,10 +51,15 @@ if [ -z "$PUB_IP" ]; then
 fi
 
 CURL=(curl -s -m 8 --resolve "$FUNNEL_HOST:443:$PUB_IP")
+STREAM_SRC="${STREAM_SRC:-tapo_sd}"  # SD = H.264 L3.1, broader browser support
+
+# Layer 0 — opportunistic ARP refresh (cheap, handles "Host is down" wedge
+# where the camera came back but launchd-time DNS cached "incomplete")
+arp -d 192.168.1.159 2>/dev/null || true
 
 # Layer 1 — master manifest reachable
 MASTER=$("${CURL[@]}" -w '\nHTTP_CODE:%{http_code}' \
-  "https://$FUNNEL_HOST/api/stream.m3u8?src=tapo" 2>/dev/null || true)
+  "https://$FUNNEL_HOST/api/stream.m3u8?src=$STREAM_SRC" 2>/dev/null || true)
 HTTP=$(printf '%s' "$MASTER" | awk -F: '/^HTTP_CODE:/ {print $2}')
 if [ "$HTTP" != "200" ]; then
   trigger_restart "master m3u8 HTTP=$HTTP"
@@ -63,6 +68,15 @@ fi
 SUB_REL=$(printf '%s' "$MASTER" | awk '/^[^#]/ && /playlist.m3u8/ {print; exit}')
 if [ -z "$SUB_REL" ]; then
   trigger_restart "master m3u8 missing sub-playlist pointer"
+fi
+
+# Layer 1b — codec drift detector. If go2rtc advertises a profile beyond
+# baseline-compatible H.264 (e.g. L5.0 = avc1.640032), browsers wedge
+# silently — the page shows a broken-image icon while status reads "Live".
+# Sticking to L3.1 / L4.1 keeps every browser happy.
+CODECS=$(printf '%s' "$MASTER" | awk -F'"' '/^#EXT-X-STREAM-INF/ {for (i=1;i<=NF;i++) if ($i=="CODECS=") print $(i+1)}')
+if printf '%s' "$CODECS" | grep -qE 'avc1\.6400(3[2-9a-fA-F]|[4-9a-fA-F])'; then
+  trigger_restart "codec drift to L≥5.0 ($CODECS) — browsers will fail to decode"
 fi
 
 # Layer 2 — sub-playlist MEDIA-SEQUENCE advancing
