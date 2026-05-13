@@ -63,18 +63,46 @@ step "[2/5] tailscaled"
 kick "$TS_LABEL" || true
 sleep 3   # ให้ tailscaled socket พร้อม
 
-step "[3/5] Tailscale down→up + Funnel (forces ingress edge re-sync)"
-# After a Mac mini reboot the Tailscale Funnel control plane may
-# assign a fresh ingress edge IP that doesn't yet have a route back
-# to this node — TLS succeeds but requests hang. A quick down→up
-# re-registers the node and the edge catches up within ~10s.
+step "[3/5] Tailscale up + Funnel (bounce only if probe still fails)"
+# We used to bounce tailscale (down→up) unconditionally to force the
+# Funnel ingress edge to re-sync after Mac mini reboots. That worked
+# for the boot-time case but caused trouble in steady state: every
+# watchdog cycle that fired restart would knock Tailscale offline for
+# 10+ seconds, the next watchdog cycle would see it still failing and
+# trigger again, and we'd end up rate-limited by Tailscale's control
+# plane (DERP Singapore started flapping after a few rapid bounces).
+#
+# Now we try the gentle path first: ensure tailnet is up, refresh the
+# funnel mounts, probe external endpoint, and only bounce as a last
+# resort.
 if [ -x "$TS_BIN" ] && [ -S "$TS_SOCK" ]; then
-  "$TS_BIN" --socket="$TS_SOCK" down >/dev/null 2>&1
-  sleep 2
   "$TS_BIN" --socket="$TS_SOCK" up --hostname=home-macmini >/dev/null 2>&1 && ok "tailnet up"
-  sleep 3   # give the control plane a moment to publish the new mapping
-  "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 "http://localhost:$GO2RTC_PORT" >/dev/null 2>&1 && ok "funnel active on :443 → :$GO2RTC_PORT"
+  "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 "http://localhost:$GO2RTC_PORT" >/dev/null 2>&1 && ok "funnel mount / → :$GO2RTC_PORT"
   "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 --set-path=/control "http://127.0.0.1:$PTZ_PORT" >/dev/null 2>&1 && ok "funnel mount /control → :$PTZ_PORT"
+
+  # Probe external; bounce only if external still hangs after 30s
+  PROBE_HOST="home-macmini.tail1d5579.ts.net"
+  PROBE_OK=0
+  for i in 1 2 3; do
+    sleep 5
+    PUB=$(dig +short +time=2 A "$PROBE_HOST" @8.8.8.8 2>/dev/null | head -1)
+    if [ -n "$PUB" ]; then
+      HTTP=$(curl -s -m 5 --resolve "$PROBE_HOST:443:$PUB" -o /dev/null -w '%{http_code}' "https://$PROBE_HOST/api/stream.m3u8?src=tapo_sd" 2>/dev/null)
+      if [ "$HTTP" = "200" ]; then PROBE_OK=1; break; fi
+    fi
+  done
+
+  if [ "$PROBE_OK" -eq 0 ]; then
+    warn "external probe still failing — bouncing tailscale (last-resort)"
+    "$TS_BIN" --socket="$TS_SOCK" down >/dev/null 2>&1
+    sleep 3
+    "$TS_BIN" --socket="$TS_SOCK" up --hostname=home-macmini >/dev/null 2>&1
+    sleep 3
+    "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 "http://localhost:$GO2RTC_PORT" >/dev/null 2>&1
+    "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 --set-path=/control "http://127.0.0.1:$PTZ_PORT" >/dev/null 2>&1
+  else
+    ok "external probe 200 OK — no bounce needed"
+  fi
 else
   warn "tailscale binary or socket missing"
 fi
