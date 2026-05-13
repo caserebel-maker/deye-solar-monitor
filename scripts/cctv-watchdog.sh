@@ -24,20 +24,31 @@ notify() {
   osascript -e "display notification \"$msg\" with title \"$title\" sound name \"$sound\"" 2>/dev/null || true
 }
 
+# Honor a per-state-file cool-down so a wedged restart doesn't loop, but
+# expire it after BACKOFF_SECS so a transient outage doesn't keep us
+# locked out forever. Previously a single failed restart left the state
+# file in place indefinitely — we sat broken from 03:41 until 10:08.
+BACKOFF_SECS="${BACKOFF_SECS:-1800}"   # 30 min
+
 trigger_restart() {
   local reason="$1"
   log "FAIL: $reason"
 
   if [ -f "$STATE_FILE" ]; then
-    PREV=$(cat "$STATE_FILE")
-    log "still failing since $PREV — not restarting again"
-    notify "🚨 CCTV watchdog" "Pipeline ยัง down หลัง auto-restart — เช็ค Mac mini" "Sosumi"
-    exit 1
+    PREV_EPOCH=$(stat -f %m "$STATE_FILE" 2>/dev/null || echo 0)
+    NOW_EPOCH=$(date +%s)
+    AGE=$(( NOW_EPOCH - PREV_EPOCH ))
+    if [ "$AGE" -lt "$BACKOFF_SECS" ]; then
+      log "still failing (age ${AGE}s < ${BACKOFF_SECS}s backoff) — not restarting"
+      notify "🚨 CCTV watchdog" "Pipeline ยัง down หลัง auto-restart — เช็ค Mac mini" "Sosumi"
+      exit 1
+    fi
+    log "state file expired (age ${AGE}s ≥ backoff ${BACKOFF_SECS}s) — retrying restart"
   fi
 
   echo "$(ts)" > "$STATE_FILE"
   rm -f "$SEQ_FILE"
-  log "first fail ($reason) — running cctv-restart.sh"
+  log "trigger ($reason) — running cctv-restart.sh"
   notify "🔄 CCTV watchdog" "ตรวจพบ pipeline down — auto-restart…" "Pop"
   bash "$SCRIPT_DIR/cctv-restart.sh" >> "$LOG" 2>&1 || true
   exit 0
