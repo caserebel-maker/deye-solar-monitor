@@ -542,16 +542,23 @@ function CctvCard() {
   const [restartCount, setRestartCount] = useState(0);
   const [restarting, setRestarting] = useState(false);
 
-  // Prefer go2rtc's fragmented-MP4 endpoint over HLS: the HLS module is
-  // currently returning 404 for segment.ts even while the producer is
-  // streaming bytes fine over stream.mp4. <video src=…stream.mp4> plays
-  // the live fragmented MP4 natively in every modern browser, no hls.js.
+  // Prefer go2rtc's fragmented-MP4 endpoint over HLS: HLS module wedges
+  // intermittently while the same producer keeps streaming bytes on
+  // stream.mp4. <video src=…stream.mp4> plays the live fragmented MP4
+  // natively in every modern browser, no hls.js, no WebSocket (Tailscale
+  // Funnel terminates as HTTP/2 and drops WS upgrade — see the iframe
+  // attempt in c949d03 / 509337a that broke for exactly that reason).
+  //
+  // We respect ?src= from the env so the operator can swap HD/SD without
+  // a code change. Default to tapo_sd (avc1.64001F = H.264 L3.1) which
+  // every browser decodes; the HD ladder advertises L4.1 but the camera
+  // actually emits L5.0, which Chromium-family browsers reject.
   const hlsUrl = useMemo(() => {
     if (!baseUrl) return undefined;
     try {
       const u = new URL(baseUrl);
       u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
-      u.searchParams.set("src", "tapo");
+      if (!u.searchParams.get("src")) u.searchParams.set("src", "tapo_sd");
       return u.toString();
     } catch {
       return baseUrl;
@@ -632,37 +639,76 @@ function CctvPlaceholder() {
 }
 
 function CctvLivePlayer({ src }: { src: string }) {
-  // Delegate the actual playback to go2rtc's bundled stream.html, which
-  // ships a `<video-stream>` web component that handles MSE + WebSocket +
-  // automatic reconnect properly. Wrestling with native <video src=mp4>
-  // (moov-atom finite duration, ended-event nuances, segment cache-busting)
-  // wasted hours; the upstream player is what go2rtc was designed for.
-  const playerUrl = useMemo(() => {
-    try {
-      const u = new URL(src);
-      const stream = u.searchParams.get("src") ?? "tapo";
-      return `${u.origin}/stream.html?src=${encodeURIComponent(stream)}&mode=mse`;
-    } catch {
-      return src;
-    }
+  // Play the live fragmented MP4 directly. The iframe-into-stream.html
+  // approach (commit 509337a) needs go2rtc's <video-stream> web
+  // component, which opens a WebSocket to /api/ws as its signal
+  // channel. Tailscale Funnel terminates as HTTP/2 and refuses the
+  // HTTP/1.1 WS upgrade with a 400, so iframe playback wedges to a
+  // broken-image icon while the status badge stays "Live".
+  //
+  // Native <video src=stream.mp4> works because go2rtc emits an
+  // infinite fragmented-MP4 over a single long-lived HTTP/2 GET, which
+  // browsers handle without any negotiation channel.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    setStatus("loading");
+    const onPlaying = () => setStatus("live");
+    const onWaiting = () => setStatus("loading");
+    const onError = () => setStatus("error");
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("waiting", onWaiting);
+    video.addEventListener("error", onError);
+
+    video.src = src;
+    video.play().catch(() => {
+      // Autoplay blocked → keep controls visible so user can tap.
+    });
+
+    return () => {
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("waiting", onWaiting);
+      video.removeEventListener("error", onError);
+      // Detach the long-lived stream so go2rtc can drop the consumer.
+      video.removeAttribute("src");
+      video.load();
+    };
   }, [src]);
+
+  const dot =
+    status === "live" ? "bg-emerald-400 animate-pulse" :
+    status === "error" ? "bg-rose-400" : "bg-amber-300";
+  const label = status === "live" ? "Live" : status === "error" ? "Stream offline" : "Connecting…";
 
   return (
     <>
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
         <span className="inline-flex items-center gap-2">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-          Live
+          <span className={`h-2 w-2 rounded-full ${dot}`} />
+          {label}
         </span>
-        <span>MSE</span>
+        <span>fMP4</span>
       </div>
       <div className="relative flex flex-1 items-center justify-center bg-slate-950">
-        <iframe
-          src={playerUrl}
-          title="Tapo live stream"
-          allow="autoplay"
-          className="h-full w-full border-0 bg-black"
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          controls
+          className="h-full w-full bg-black object-contain"
         />
+        {status === "error" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
+            <Camera className="h-9 w-9 text-rose-300" />
+            <p className="mt-3 text-sm font-semibold text-white">Stream offline</p>
+            <p className="mt-2 max-w-xs text-[11px] text-white/45">เช็ค go2rtc + Tailscale Funnel ที่บ้าน — รัน <code>cctv-health.sh</code></p>
+          </div>
+        )}
       </div>
     </>
   );
