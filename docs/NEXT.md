@@ -50,7 +50,7 @@ curl -H "Authorization: Bearer $SECRET" \
 
 ---
 
-## §0.0 งาน (ข) — Setup Telegram alert solar > 2.5 kW
+## §0.0 งาน (ข) — Setup Telegram alert solar > 4.0 kW
 
 ที่เตรียมไว้บน laptop session แล้ว (commit ก่อนหน้านี้):
 - `app/api/cron/solar-threshold/route.ts` — cron handler
@@ -87,12 +87,14 @@ curl -H "Authorization: Bearer $SECRET" \
   https://monitor-solar-inverter-deye-battery.vercel.app/api/cron/solar-threshold
 ```
 
-ถ้า solar ตอนนี้ > 2.5 kW → Telegram จะส่งข้อความเข้าทันที 📲
-ถ้าน้อยกว่า → response `{ "sent": false }` → ลด threshold ชั่วคราวเทส:
+ถ้า solar ตอนนี้ > 4.0 kW → Telegram จะส่งข้อความ `Solar > 4.0 kW` 📲
+ถ้าน้อยกว่า → Telegram จะส่งข้อความ `Solar < 4.0 kW` เช่นกัน
+
+ถ้าต้องการเทสฝั่ง `over` ตอนแดดน้อย ให้ลด threshold ชั่วคราว:
 ```bash
 echo "0.1" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production --force
 npx vercel deploy --prod --yes
-# ทดสอบเสร็จเปลี่ยนกลับ 2.5
+# ทดสอบเสร็จเปลี่ยนกลับ 4.0
 ```
 
 **รายละเอียดเต็ม + troubleshooting:** [docs/SOLAR_ALERTS.md](SOLAR_ALERTS.md)

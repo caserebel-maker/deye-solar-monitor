@@ -1,6 +1,6 @@
 # Solar Production Alerts (Telegram)
 
-ส่ง **status update ทุก 30 นาที** ช่วงกลางวัน (BKK 07:30–16:30) — แต่ละข้อความบอกว่ากำลังผลิตอยู่เท่าไหร่ + เกินหรือต่ำกว่า threshold (default 2.5 kW)
+ส่ง **status update ทุก 30 นาที** ช่วงกลางวัน (BKK 07:30–16:30) — แต่ละข้อความบอกว่ากำลังผลิตอยู่เท่าไหร่ + เกินหรือต่ำกว่า threshold (default 4.0 kW)
 
 ## ภาพรวม
 
@@ -68,7 +68,7 @@ echo "<CHAT_ID>" | npx vercel env add TELEGRAM_CHAT_ID production preview develo
 # Cron secret (random string — ป้องกัน endpoint โดน hit จากภายนอก)
 openssl rand -hex 32 | npx vercel env add CRON_SECRET production preview development
 
-# (Optional) override threshold ถ้าไม่ใช้ default 2.5
+# (Optional) override threshold ถ้าไม่ใช้ default 4.0
 # echo "3.0" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production preview development
 ```
 
@@ -80,7 +80,7 @@ openssl rand -hex 32 | npx vercel env add CRON_SECRET production preview develop
 
 ```bash
 git add vercel.json app/api/cron/ lib/telegram.ts .env.example docs/SOLAR_ALERTS.md
-git commit -m "feat(alerts): hourly Telegram alert when solar > 2.5 kW"
+git commit -m "feat(alerts): hourly Telegram alert when solar > 4.0 kW"
 git push origin main
 # Vercel auto-deploy + register cron
 ```
@@ -101,25 +101,27 @@ curl -H "Authorization: Bearer $SECRET" \
 
 **Response:**
 ```json
-{ "ok": true, "sent": true, "power": 2.81, "threshold": 2.5 }
+{ "ok": true, "sent": true, "power": 2.81, "threshold": 4.0 }
 ```
 
 → Telegram จะส่งข้อความเข้าทันที ✅
 
-### ถ้า solar ยังต่ำกว่า threshold
+### ถ้า solar ต่ำกว่า threshold
 
 Response:
 ```json
-{ "ok": true, "sent": false, "power": 0.32, "threshold": 2.5, "reason": "below threshold" }
+{ "ok": true, "sent": true, "power": 0.32, "threshold": 4.0, "state": "under" }
 ```
 
-ลด threshold ลงชั่วคราวเพื่อทดสอบ:
+ระบบจะส่ง Telegram เหมือนกัน แต่หัวข้อความจะเป็น `Solar < 4.0 kW` พร้อม indicator ▼
+
+ลด threshold ลงชั่วคราวเพื่อทดสอบฝั่ง `over`:
 ```bash
 echo "0.1" | npx vercel env add SOLAR_ALERT_THRESHOLD_KW production
 npx vercel deploy --prod --yes
 ```
 
-ทดสอบเสร็จอย่าลืมเปลี่ยนกลับ 2.5
+ทดสอบเสร็จอย่าลืมเปลี่ยนกลับ 4.0
 
 ---
 
@@ -127,7 +129,7 @@ npx vercel deploy --prod --yes
 
 **ตอนผลิตเกิน threshold:**
 ```
-☀️ Solar > 2.5 kW
+☀️ Solar > 4.0 kW
 
 ⚡ ตอนนี้ผลิต 2.81 kW ▲
 🏠 บ้านใช้ 0.94 kW
@@ -140,7 +142,7 @@ npx vercel deploy --prod --yes
 
 **ตอนผลิตต่ำกว่า threshold:**
 ```
-🌤️ Solar < 2.5 kW
+🌤️ Solar < 4.0 kW
 
 ⚡ ตอนนี้ผลิต 1.42 kW ▼
 🏠 บ้านใช้ 1.85 kW

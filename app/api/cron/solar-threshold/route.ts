@@ -16,7 +16,7 @@ import { sendTelegramMessage } from "@/lib/telegram";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const DEFAULT_THRESHOLD_KW = 2.5;
+const DEFAULT_THRESHOLD_KW = 4.0;
 const DEFAULT_START_MINUTES = 7 * 60 + 30;   // 07:30 Bangkok
 const DEFAULT_END_MINUTES = 16 * 60 + 30;    // 16:30 Bangkok (inclusive)
 const PROD_URL = "https://monitor-solar-inverter-deye-battery.vercel.app";
