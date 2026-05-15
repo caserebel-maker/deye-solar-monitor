@@ -67,6 +67,10 @@ const tabs: Array<{ id: ActiveTab; label: string; icon: typeof Home }> = [
 ];
 type DonutItem = { name: string; value: number };
 
+function currentTemperature(weather: WeatherForecast | null) {
+  return weather?.source === "live" ? Math.round(weather.current.temperatureC) : null;
+}
+
 function formatPower(value: number) {
   const abs = Math.abs(value);
   if (abs < 1) return `${(abs * 1000).toFixed(2)} W`;
@@ -230,7 +234,10 @@ function SkeletonDashboard() {
   );
 }
 
-function HeroStats({ metrics }: { metrics: SolarOverview["metrics"] }) {
+function HeroStats({ metrics, weather }: { metrics: SolarOverview["metrics"]; weather: WeatherForecast | null }) {
+  const temperature = currentTemperature(weather);
+  const WeatherIcon = weather?.source === "live" ? weatherIcon(weather.current.weatherCode, weather.current.isDay) : CloudSun;
+
   return (
     <div className="hero-stats grid grid-cols-2 gap-3 rounded-[1.35rem] border border-white/50 bg-white/22 p-3 backdrop-blur-xl sm:hidden">
       <div className="min-w-0">
@@ -243,8 +250,8 @@ function HeroStats({ metrics }: { metrics: SolarOverview["metrics"] }) {
       <div className="min-w-0">
         <p className="text-sm font-bold leading-tight text-slate-950">Weather</p>
         <p className="data-readout mt-2 flex items-center gap-1 text-[2rem] font-black leading-none text-slate-950">
-          <CloudSun className="h-8 w-8 shrink-0 text-slate-950" strokeWidth={2.2} />
-          33<span className="text-lg font-bold">°C</span>
+          <WeatherIcon className="h-8 w-8 shrink-0 text-slate-950" strokeWidth={2.2} />
+          {temperature ?? "--"}<span className="text-lg font-bold">°C</span>
         </p>
       </div>
     </div>
@@ -361,8 +368,10 @@ function MobileFlowNode({
   );
 }
 
-function EnergyFlow({ overview }: { overview: SolarOverview }) {
+function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: WeatherForecast | null }) {
   const { metrics, flows } = overview;
+  const temperature = currentTemperature(weather);
+  const WeatherIcon = weather?.source === "live" ? weatherIcon(weather.current.weatherCode, weather.current.isDay) : CloudSun;
   const solarToInverter = metrics.solarKw;
   const batteryToInverter = flows.batteryToHomeKw;
   const inverterToBattery = flows.solarToBatteryKw;
@@ -501,7 +510,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
         <div className="rounded-2xl bg-white/35 px-4 py-3">
           <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Weather</p>
           <p className="data-readout mt-1 flex items-center gap-1 text-xl font-black text-slate-950">
-            <CloudSun className="h-4 w-4" /> 33 <span className="text-xs">°C</span>
+            <WeatherIcon className="h-4 w-4" /> {temperature ?? "--"} <span className="text-xs">°C</span>
           </p>
         </div>
       </div>
@@ -528,7 +537,7 @@ function EnergyFlow({ overview }: { overview: SolarOverview }) {
           <div>
             <p className="text-xs text-slate-500">Weather</p>
             <p className="data-readout mt-1 flex items-center gap-1 text-xl font-black text-slate-950">
-              <CloudSun className="h-4 w-4" /> 33 <span className="text-xs">°C</span>
+              <WeatherIcon className="h-4 w-4" /> {temperature ?? "--"} <span className="text-xs">°C</span>
             </p>
           </div>
         </div>
@@ -737,22 +746,7 @@ function weatherTone(code: number, isDay = true) {
   return isDay ? "text-amber-400" : "text-indigo-300";
 }
 
-function WeatherForecastCard() {
-  const [forecast, setForecast] = useState<WeatherForecast | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/weather/forecast")
-      .then((response) => response.json())
-      .then((data: WeatherForecast) => {
-        if (!cancelled) setForecast(data);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+function WeatherForecastCard({ forecast }: { forecast: WeatherForecast | null }) {
   if (!forecast || forecast.hourly.length === 0) return null;
 
   const currentTone = weatherTone(forecast.current.weatherCode, forecast.current.isDay);
@@ -851,6 +845,7 @@ function AlarmCard({ alarm }: { alarm: Alarm }) {
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [weather, setWeather] = useState<WeatherForecast | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -885,10 +880,13 @@ export default function DashboardPage() {
     if (manual) setIsRefreshing(true);
     try {
       setError(null);
-      const [overview, history, alarms] = await Promise.all([
+      const [overview, history, alarms, forecast] = await Promise.all([
         fetch("/api/solar/overview", { cache: "no-store" }).then((response) => response.json()),
         fetch("/api/solar/history", { cache: "no-store" }).then((response) => response.json()),
         fetch("/api/solar/alarms", { cache: "no-store" }).then((response) => response.json()),
+        fetch("/api/weather/forecast", { cache: "no-store" })
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null),
       ]);
 
       if (overview.error || history.error || alarms.error) {
@@ -896,6 +894,7 @@ export default function DashboardPage() {
       }
 
       setData({ overview, history, alarms });
+      if (forecast && !forecast.error) setWeather(forecast as WeatherForecast);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load solar data.");
     } finally {
@@ -1064,7 +1063,7 @@ export default function DashboardPage() {
               <span className="col-span-2 truncate sm:col-span-1 lg:min-w-0">Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
             </div>
             <div className="mt-3 sm:hidden">
-              <HeroStats metrics={metrics} />
+              <HeroStats metrics={metrics} weather={weather} />
             </div>
           </div>
           <nav className="hidden shrink-0 gap-2 overflow-x-auto text-sm font-medium text-slate-600 sm:flex lg:flex">
@@ -1108,12 +1107,12 @@ export default function DashboardPage() {
         )}
 
         <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
-          <EnergyFlow overview={data.overview} />
+          <EnergyFlow overview={data.overview} weather={weather} />
           <CctvCard />
         </section>
 
         <section className="mt-4 grid gap-4">
-          <WeatherForecastCard />
+          <WeatherForecastCard forecast={weather} />
           <section className="glass premium-panel rounded-3xl p-5" id="plant-section">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-slate-950">Solar & Utilization</h2>

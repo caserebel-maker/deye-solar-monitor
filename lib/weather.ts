@@ -45,7 +45,7 @@ export async function getWeatherForecast(): Promise<WeatherForecast> {
     `&forecast_days=2&timezone=auto`;
 
   try {
-    const response = await fetch(url, { next: { revalidate: 600 } });
+    const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) throw new Error(`Open-Meteo status ${response.status}`);
     const data = (await response.json()) as OpenMeteoResponse;
     if (!data.hourly || !data.current) throw new Error("Open-Meteo missing hourly/current");
