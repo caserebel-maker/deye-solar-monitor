@@ -547,7 +547,9 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
 }
 
 function CctvCard() {
-  const baseUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL;
+  const camera1BaseUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL;
+  const camera2BaseUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL_2;
+  const [cameraView, setCameraView] = useState<"camera1" | "camera2" | "both">("camera1");
   const [restartCount, setRestartCount] = useState(0);
   const [restarting, setRestarting] = useState(false);
 
@@ -562,7 +564,7 @@ function CctvCard() {
   // a code change. Default to tapo_sd (avc1.64001F = H.264 L3.1) which
   // every browser decodes; the HD ladder advertises L4.1 but the camera
   // actually emits L5.0, which Chromium-family browsers reject.
-  const hlsUrl = useMemo(() => {
+  const toMp4StreamUrl = useCallback((baseUrl?: string) => {
     if (!baseUrl) return undefined;
     try {
       const u = new URL(baseUrl);
@@ -572,21 +574,32 @@ function CctvCard() {
     } catch {
       return baseUrl;
     }
-  }, [baseUrl]);
+  }, []);
+
+  const camera1Url = useMemo(() => toMp4StreamUrl(camera1BaseUrl), [camera1BaseUrl, toMp4StreamUrl]);
+  const camera2Url = useMemo(() => toMp4StreamUrl(camera2BaseUrl), [camera2BaseUrl, toMp4StreamUrl]);
+  const activeBaseUrl = cameraView === "camera2" ? camera2BaseUrl : camera1BaseUrl;
+  const hasAnyStream = Boolean(camera1Url || camera2Url);
 
   const restartStream = useCallback(async () => {
-    if (!baseUrl || restarting) return;
+    if (!activeBaseUrl || restarting) return;
     setRestarting(true);
     try {
-      const origin = new URL(baseUrl).origin;
+      const origin = new URL(activeBaseUrl).origin;
       await fetch(`${origin}/api/restart`, { method: "POST", mode: "no-cors" }).catch(() => {});
-      // Give go2rtc a moment to reconnect to RTSP before we tear down hls.js
+      // Give go2rtc a moment to reconnect to RTSP before reloading the player.
       await new Promise((resolve) => setTimeout(resolve, 7000));
       setRestartCount((n) => n + 1);
     } finally {
       setRestarting(false);
     }
-  }, [baseUrl, restarting]);
+  }, [activeBaseUrl, restarting]);
+
+  const views = [
+    { id: "camera1", label: "Camera 1" },
+    { id: "camera2", label: "Camera 2" },
+    { id: "both", label: "Both" },
+  ] as const;
 
   return (
     <section className="glass premium-panel flex min-h-[470px] flex-col rounded-3xl p-5">
@@ -594,10 +607,12 @@ function CctvCard() {
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
           <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo C545D CCTV Monitor</h2>
-          <p className="mt-1 text-[11px] font-medium text-slate-500">Lens A · close-up</p>
+          <p className="mt-1 text-[11px] font-medium text-slate-500">
+            {cameraView === "camera1" ? "Lens A · close-up" : cameraView === "camera2" ? "Lens B · secondary view" : "Dual camera view"}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          {hlsUrl && (
+          {hasAnyStream && (
             <button
               aria-label="Restart stream"
               onClick={restartStream}
@@ -614,14 +629,53 @@ function CctvCard() {
           </div>
         </div>
       </div>
+      <div className="mt-4 grid rounded-2xl border border-white/15 bg-slate-950/35 p-1 text-xs font-semibold text-white/70 sm:grid-cols-3">
+        {views.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            onClick={() => setCameraView(view.id)}
+            className={`rounded-xl px-4 py-2 transition ${
+              cameraView === view.id
+                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-lg shadow-sky-500/20"
+                : "hover:bg-white/10"
+            }`}
+          >
+            {view.label}
+          </button>
+        ))}
+      </div>
       <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
-        {hlsUrl ? <CctvLivePlayer key={restartCount} src={hlsUrl} /> : <CctvPlaceholder />}
+        {cameraView === "both" ? (
+          <div className="grid flex-1 gap-px bg-white/10 lg:grid-cols-2">
+            {camera1Url ? (
+              <CctvLivePlayer key={`camera1-${restartCount}`} src={camera1Url} label="Camera 1 · Lens A" compact />
+            ) : (
+              <CctvPlaceholder title="Camera 1 not configured" />
+            )}
+            {camera2Url ? (
+              <CctvLivePlayer key={`camera2-${restartCount}`} src={camera2Url} label="Camera 2 · Lens B" compact />
+            ) : (
+              <CctvPlaceholder title="Camera 2 not configured" detail="Set NEXT_PUBLIC_CCTV_HLS_URL_2 when the second stream is ready." />
+            )}
+          </div>
+        ) : cameraView === "camera2" ? (
+          camera2Url ? (
+            <CctvLivePlayer key={`camera2-${restartCount}`} src={camera2Url} label="Camera 2 · Lens B" />
+          ) : (
+            <CctvPlaceholder title="Camera 2 not configured" detail="Set NEXT_PUBLIC_CCTV_HLS_URL_2 when the second stream is ready." />
+          )
+        ) : camera1Url ? (
+          <CctvLivePlayer key={`camera1-${restartCount}`} src={camera1Url} label="Camera 1 · Lens A" />
+        ) : (
+          <CctvPlaceholder title="Camera 1 not configured" />
+        )}
       </div>
     </section>
   );
 }
 
-function CctvPlaceholder() {
+function CctvPlaceholder({ title = "Tapo camera slot ready", detail }: { title?: string; detail?: string }) {
   return (
     <>
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
@@ -637,9 +691,13 @@ function CctvPlaceholder() {
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-white/15 bg-white/10 text-cyan-200 shadow-2xl">
             <Camera className="h-9 w-9" />
           </div>
-          <p className="mt-4 text-sm font-semibold text-white">Tapo camera slot ready</p>
+          <p className="mt-4 text-sm font-semibold text-white">{title}</p>
           <p className="mx-auto mt-2 max-w-xs text-xs leading-5 text-white/55">
-            Set <code className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-cyan-200">NEXT_PUBLIC_CCTV_HLS_URL</code> in env. See <code className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-cyan-200">docs/CCTV_SETUP.md</code>.
+            {detail ?? (
+              <>
+                Set <code className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-cyan-200">NEXT_PUBLIC_CCTV_HLS_URL</code> in env. See <code className="rounded bg-white/10 px-1 py-0.5 text-[10px] text-cyan-200">docs/CCTV_SETUP.md</code>.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -647,7 +705,7 @@ function CctvPlaceholder() {
   );
 }
 
-function CctvLivePlayer({ src }: { src: string }) {
+function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: { src: string; label?: string; compact?: boolean }) {
   // Play the live fragmented MP4 directly. The iframe-into-stream.html
   // approach (commit 509337a) needs go2rtc's <video-stream> web
   // component, which opens a WebSocket to /api/ws as its signal
@@ -691,10 +749,10 @@ function CctvLivePlayer({ src }: { src: string }) {
   const dot =
     status === "live" ? "bg-emerald-400 animate-pulse" :
     status === "error" ? "bg-rose-400" : "bg-amber-300";
-  const label = status === "live" ? "Live" : status === "error" ? "Stream offline" : "Connecting…";
+  const label = status === "live" ? streamLabel : status === "error" ? "Stream offline" : "Connecting…";
 
   return (
-    <>
+    <div className="flex min-h-[280px] flex-1 flex-col overflow-hidden bg-slate-950">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
         <span className="inline-flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${dot}`} />
@@ -709,7 +767,7 @@ function CctvLivePlayer({ src }: { src: string }) {
           muted
           playsInline
           controls
-          className="h-full w-full bg-black object-contain"
+          className={`h-full w-full bg-black ${compact ? "object-cover" : "object-contain"}`}
         />
         {status === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
@@ -719,7 +777,7 @@ function CctvLivePlayer({ src }: { src: string }) {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
