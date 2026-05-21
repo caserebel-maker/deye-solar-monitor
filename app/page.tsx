@@ -593,7 +593,7 @@ function CctvCard() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo CCTV Monitor</h2>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo C545D CCTV Monitor</h2>
           <p className="mt-1 text-[11px] font-medium text-slate-500">Lens A · close-up</p>
         </div>
         <div className="flex items-center gap-2">
