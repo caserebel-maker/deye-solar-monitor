@@ -23,6 +23,11 @@ import {
   CalendarDays,
   Camera,
   ChartSpline,
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Square,
   Cloud,
   CloudDrizzle,
   CloudFog,
@@ -546,10 +551,18 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
   );
 }
 
-function CctvCard() {
-  const camera1BaseUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL;
-  const camera2BaseUrl = process.env.NEXT_PUBLIC_CCTV_HLS_URL_2;
-  const [cameraView, setCameraView] = useState<"camera1" | "camera2" | "both">("camera1");
+interface CctvCardProps {
+  title: string;
+  subtitle?: string;
+  baseUrl?: string;
+  hasLensToggle?: boolean;
+  hasPtz?: boolean;
+  envName: string;
+  cameraIp?: string;
+}
+
+function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = false, envName, cameraIp }: CctvCardProps) {
+  const [lens, setLens] = useState<"lens_a" | "lens_b">("lens_a");
   const [restartCount, setRestartCount] = useState(0);
   const [restarting, setRestarting] = useState(false);
 
@@ -564,28 +577,28 @@ function CctvCard() {
   // a code change. Default to tapo_sd (avc1.64001F = H.264 L3.1) which
   // every browser decodes; the HD ladder advertises L4.1 but the camera
   // actually emits L5.0, which Chromium-family browsers reject.
-  const toMp4StreamUrl = useCallback((baseUrl?: string) => {
+  const hlsUrl = useMemo(() => {
     if (!baseUrl) return undefined;
     try {
       const u = new URL(baseUrl);
       u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
-      if (!u.searchParams.get("src")) u.searchParams.set("src", "tapo_sd");
+      if (hasLensToggle) {
+        const originalSrc = u.searchParams.get("src") || "tapo";
+        const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
+        const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
+        u.searchParams.set("src", targetSrc);
+      }
       return u.toString();
     } catch {
       return baseUrl;
     }
-  }, []);
-
-  const camera1Url = useMemo(() => toMp4StreamUrl(camera1BaseUrl), [camera1BaseUrl, toMp4StreamUrl]);
-  const camera2Url = useMemo(() => toMp4StreamUrl(camera2BaseUrl), [camera2BaseUrl, toMp4StreamUrl]);
-  const activeBaseUrl = cameraView === "camera2" ? camera2BaseUrl : camera1BaseUrl;
-  const hasAnyStream = Boolean(camera1Url || camera2Url);
+  }, [baseUrl, lens, hasLensToggle]);
 
   const restartStream = useCallback(async () => {
-    if (!activeBaseUrl || restarting) return;
+    if (!baseUrl || restarting) return;
     setRestarting(true);
     try {
-      const origin = new URL(activeBaseUrl).origin;
+      const origin = new URL(baseUrl).origin;
       await fetch(`${origin}/api/restart`, { method: "POST", mode: "no-cors" }).catch(() => {});
       // Give go2rtc a moment to reconnect to RTSP before reloading the player.
       await new Promise((resolve) => setTimeout(resolve, 7000));
@@ -593,26 +606,39 @@ function CctvCard() {
     } finally {
       setRestarting(false);
     }
-  }, [activeBaseUrl, restarting]);
-
-  const views = [
-    { id: "camera1", label: "Camera 1" },
-    { id: "camera2", label: "Camera 2" },
-    { id: "both", label: "Both" },
-  ] as const;
+  }, [baseUrl, restarting]);
 
   return (
-    <section className="glass premium-panel flex min-h-[470px] flex-col rounded-3xl p-5">
+    <section className="glass premium-panel flex flex-col rounded-3xl p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">Tapo C545D CCTV Monitor</h2>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">{title}</h2>
           <p className="mt-1 text-[11px] font-medium text-slate-500">
-            {cameraView === "camera1" ? "Lens A · close-up" : cameraView === "camera2" ? "Lens B · secondary view" : "Dual camera view"}
+            {subtitle ? `${subtitle} · ` : ""}
+            {hasLensToggle ? (lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed") : "Single Lens Feed"}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {hasAnyStream && (
+          {baseUrl && hasLensToggle && (
+            <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[11px] font-medium">
+              <button
+                type="button"
+                onClick={() => setLens("lens_a")}
+                className={`px-3 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              >
+                Lens A (Fixed)
+              </button>
+              <button
+                type="button"
+                onClick={() => setLens("lens_b")}
+                className={`px-3 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              >
+                Lens B (PTZ)
+              </button>
+            </div>
+          )}
+          {hlsUrl && (
             <button
               aria-label="Restart stream"
               onClick={restartStream}
@@ -629,49 +655,82 @@ function CctvCard() {
           </div>
         </div>
       </div>
-      <div className="mt-4 grid rounded-2xl border border-white/15 bg-slate-950/35 p-1 text-xs font-semibold text-white/70 sm:grid-cols-3">
-        {views.map((view) => (
-          <button
-            key={view.id}
-            type="button"
-            onClick={() => setCameraView(view.id)}
-            className={`rounded-xl px-4 py-2 transition ${
-              cameraView === view.id
-                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-lg shadow-sky-500/20"
-                : "hover:bg-white/10"
-            }`}
-          >
-            {view.label}
-          </button>
-        ))}
-      </div>
-      <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
-        {cameraView === "both" ? (
-          <div className="grid flex-1 gap-px bg-white/10 lg:grid-cols-2">
-            {camera1Url ? (
-              <CctvLivePlayer key={`camera1-${restartCount}`} src={camera1Url} label="Camera 1 · Lens A" compact />
-            ) : (
-              <CctvPlaceholder title="Camera 1 not configured" />
-            )}
-            {camera2Url ? (
-              <CctvLivePlayer key={`camera2-${restartCount}`} src={camera2Url} label="Camera 2 · Lens B" compact />
-            ) : (
-              <CctvPlaceholder title="Camera 2 not configured" detail="Set NEXT_PUBLIC_CCTV_HLS_URL_2 when the second stream is ready." />
-            )}
-          </div>
-        ) : cameraView === "camera2" ? (
-          camera2Url ? (
-            <CctvLivePlayer key={`camera2-${restartCount}`} src={camera2Url} label="Camera 2 · Lens B" />
-          ) : (
-            <CctvPlaceholder title="Camera 2 not configured" detail="Set NEXT_PUBLIC_CCTV_HLS_URL_2 when the second stream is ready." />
-          )
-        ) : camera1Url ? (
-          <CctvLivePlayer key={`camera1-${restartCount}`} src={camera1Url} label="Camera 1 · Lens A" />
+      <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl min-h-[220px]">
+        {hlsUrl ? (
+          <CctvLivePlayer
+            key={`${restartCount}-${lens}`}
+            src={hlsUrl}
+            label={hasLensToggle ? (lens === "lens_b" ? "Lens B · PTZ" : "Lens A · Fixed") : "Live"}
+          />
         ) : (
-          <CctvPlaceholder title="Camera 1 not configured" />
+          <CctvPlaceholder
+            title="Camera not configured"
+            detail={`Set ${envName} in env. See docs/CCTV_SETUP.md`}
+          />
         )}
       </div>
+      {hlsUrl && hasPtz && lens === "lens_b" && <CctvPtzControls cameraIp={cameraIp} />}
     </section>
+  );
+}
+
+function CctvPtzControls({ cameraIp }: { cameraIp?: string }) {
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = useCallback(async (direction: string, duration_ms = 400) => {
+    setPending(direction);
+    setError(null);
+    try {
+      const res = await fetch("/api/cctv/ptz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction, duration_ms, ip: cameraIp }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "PTZ command failed");
+    } finally {
+      setPending(null);
+    }
+  }, [cameraIp]);
+
+  const btn = (label: string, dir: string, Icon: typeof ChevronUp, classes = "") =>
+    createElement(
+      "button",
+      {
+        type: "button",
+        "aria-label": label,
+        disabled: pending !== null,
+        onClick: () => send(dir),
+        className: `flex h-10 w-10 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-white/82 transition hover:bg-white/12 hover:text-white disabled:opacity-40 ${classes}`,
+      },
+      createElement(Icon, { className: "h-5 w-5" }),
+    );
+
+  return (
+    <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3">
+      <div>
+        <p className="text-[10px] font-medium uppercase tracking-[0.18em] eyebrow-text-inset">Pan / Tilt</p>
+        <p className="mt-0.5 text-[11px] text-white/55">
+          {error ? <span className="text-rose-300">{error}</span> : pending ? `Moving ${pending}…` : "ควบคุมการหมุนเลนส์ตรงนี้ได้เลย"}
+        </p>
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        <span />
+        {btn("ขยับขึ้น", "up", ChevronUp)}
+        <span />
+        {btn("ซ้าย", "left", ChevronLeft)}
+        {btn("หยุด", "stop", Square, "text-rose-300")}
+        {btn("ขวา", "right", ChevronRight)}
+        <span />
+        {btn("ขยับลง", "down", ChevronDown)}
+        <span />
+      </div>
+    </div>
   );
 }
 
@@ -1166,7 +1225,27 @@ export default function DashboardPage() {
 
         <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
           <EnergyFlow overview={data.overview} weather={weather} />
-          <CctvCard />
+          <CctvCard
+            title="Solar Camera"
+            subtitle="Tapo C545d"
+            baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL}
+            hasLensToggle={true}
+            hasPtz={true}
+            envName="NEXT_PUBLIC_CCTV_HLS_URL"
+            cameraIp="192.168.1.123"
+          />
+        </section>
+
+        <section className="mt-4">
+          <CctvCard
+            title="DLC"
+            subtitle="Tapo C545d"
+            baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2}
+            hasLensToggle={true}
+            hasPtz={true}
+            envName="NEXT_PUBLIC_CCTV_HLS_URL_2"
+            cameraIp="192.168.1.106"
+          />
         </section>
 
         <section className="mt-4 grid gap-4">

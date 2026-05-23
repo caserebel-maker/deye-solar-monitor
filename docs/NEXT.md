@@ -4,21 +4,17 @@
 
 ---
 
-## §0 🔁 สถานะปัจจุบัน — Mac mini session 2026-05-10 22:30 +07
+## §0 🔁 สถานะปัจจุบัน — Mac mini session 2026-05-23 13:15 +07
 
-### งาน (ก) ภาพ CCTV หายหลายนาที — ✅ Step 1-2 เสร็จ
+### งาน (ก) ภาพ CCTV 2 เลนส์และปุ่มควบคุม — ✅ เสร็จเรียบร้อย
+1. ✅ ค้นพบ RTSP stream path สำหรับเลนส์ตัวที่สอง (Lens B - PTZ Telephoto) คือ `/stream6` (HD) และ `/stream7` (SD)
+2. ✅ อัปเดต `go2rtc.yaml` เพิ่ม `tapo_lens_b` และ `tapo_lens_b_sd`
+3. ✅ เพิ่มปุ่มสลับ Lens A / Lens B บนหน้าเว็บ Dashboard
+4. ✅ กู้คืนแผงควบคุมการหมุนกล้อง (PTZ controls /api/cctv/ptz) กลับมาใช้งานได้จริง โดยจะแสดงผลเฉพาะเวลาสลับมาดู Lens B (PTZ) เพื่อให้ผู้ใช้กดหมุนกล้องและเห็นภาพขยับในหน้า Dashboard ได้ทันที
+5. ✅ เพิ่มการควบคุมกล้องตัวที่สอง (DLC) พร้อมสลับเลนส์ A/B และหมุนกล้องได้อิสระ โดยเชื่อมต่อผ่าน dynamic routing ใน backend
+6. ✅ รัน typecheck และ build ผ่านในระบบเรียบร้อยแล้ว
 
-**Diagnose พบ root cause สำคัญ:** macOS Tahoe block LaunchAgent จาก `/Volumes/C1TB/...` →
-**watchdog ไม่ได้รันเลย 24 ชม.** (`Operation not permitted` ใน /tmp/cctv-watchdog-launchd.err)
-
-**แก้:**
-1. ✅ Mirror scripts ไป `~/cctv-scripts/{watchdog,restart,health}.sh` (home dir = ไม่ block)
-2. ✅ Update plist `com.ebci.cctv-watchdog`:
-   - `ProgramArguments` ชี้ `~/cctv-scripts/cctv-watchdog.sh`
-   - `StartInterval` 300 → **60s** (ลด max downtime 5 เท่า)
-3. ✅ ทดสอบ: touch state file → 60s ต่อมา watchdog เห็น healthy + clear → log "RECOVERED"
-
-**สังเกต 1-2 วัน:** ถ้ายังหาย → ทำ §2 (SD swap) ใน [docs/CCTV_STABILITY.md](CCTV_STABILITY.md)
+### งาน (ข) ภาพ CCTV หายหลายนาที — ✅ Step 1-2 เสร็จ (ก่อนหน้านี้)
 
 ### งาน (ข) Telegram alert — ✅ live แล้ว
 
