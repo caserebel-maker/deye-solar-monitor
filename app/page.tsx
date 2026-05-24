@@ -785,9 +785,11 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
     setStatus("loading");
     const onPlaying = () => setStatus("live");
     const onWaiting = () => setStatus("loading");
+    const onStalled = () => setStatus("loading");
     const onError = () => setStatus("error");
     video.addEventListener("playing", onPlaying);
     video.addEventListener("waiting", onWaiting);
+    video.addEventListener("stalled", onStalled);
     video.addEventListener("error", onError);
 
     video.src = src;
@@ -798,12 +800,39 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
     return () => {
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("waiting", onWaiting);
+      video.removeEventListener("stalled", onStalled);
       video.removeEventListener("error", onError);
       // Detach the long-lived stream so go2rtc can drop the consumer.
       video.removeAttribute("src");
       video.load();
     };
   }, [src]);
+
+  // Auto-recovery when stream is stuck in loading/waiting state
+  useEffect(() => {
+    if (status !== "loading") return;
+
+    const timer = setTimeout(() => {
+      const video = videoRef.current;
+      if (video) {
+        console.log("Stream stalled/loading for 8 seconds, auto-reconnecting...");
+        try {
+          const url = new URL(src);
+          url.searchParams.set("_t", Date.now().toString());
+          video.src = url.toString();
+          video.load();
+          video.play().catch(() => {});
+        } catch {
+          // Fallback if URL parsing fails
+          video.src = src;
+          video.load();
+          video.play().catch(() => {});
+        }
+      }
+    }, 8000);
+
+    return () => clearTimeout(timer);
+  }, [status, src]);
 
   const dot =
     status === "live" ? "bg-emerald-400 animate-pulse" :
