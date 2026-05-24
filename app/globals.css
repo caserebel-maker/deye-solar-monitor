@@ -292,6 +292,40 @@ select {
   }
 }
 
+@media (min-width: 641px) and (max-width: 1180px) and (orientation: landscape) {
+  .energy-flow-canvas {
+    height: min(52vh, 360px);
+    min-height: 320px;
+  }
+
+  .mobile-flow-node {
+    width: 92px;
+  }
+
+  .mobile-node-icon {
+    width: 50px;
+    height: 50px;
+    border-width: 5px;
+    border-radius: 16px;
+  }
+
+  .mobile-node-icon-core {
+    width: 62px;
+    height: 62px;
+    border-radius: 20px;
+  }
+
+  .mobile-node-value {
+    font-size: 1.02rem;
+    line-height: 1.05;
+  }
+
+  .mobile-node-label {
+    font-size: 0.72rem;
+    line-height: 1;
+  }
+}
+
 @media (max-width: 390px) {
   .energy-flow-canvas {
     min-height: 470px;
@@ -408,4 +442,3 @@ select {
 .light-dashboard .mobile-node-label {
   color: rgba(71, 85, 105, 0.86);
 }
-

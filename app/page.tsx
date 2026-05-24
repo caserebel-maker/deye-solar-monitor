@@ -255,7 +255,7 @@ function HeroStats({ metrics, weather }: { metrics: SolarOverview["metrics"]; we
       <div className="min-w-0">
         <p className="text-sm font-bold leading-tight text-slate-950">Weather</p>
         <p className="data-readout mt-2 flex items-center gap-1 text-[2rem] font-black leading-none text-slate-950">
-          <WeatherIcon className="h-8 w-8 shrink-0 text-slate-950" strokeWidth={2.2} />
+          {createElement(WeatherIcon, { className: "h-8 w-8 shrink-0 text-slate-950", strokeWidth: 2.2 })}
           {temperature ?? "--"}<span className="text-lg font-bold">°C</span>
         </p>
       </div>
@@ -414,8 +414,8 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="energy-flow-canvas mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.75/1] lg:min-h-[420px]">
-        <svg viewBox="0 0 700 400" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
+      <div className="energy-flow-canvas mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid xl:mt-4 xl:h-auto xl:aspect-[1.75/1] xl:min-h-[420px]">
+        <svg viewBox="0 0 700 400" className="hidden h-full w-full xl:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -457,7 +457,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           />
           <FlowNode compact x={610} y={320} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
         </svg>
-        <div className="relative h-full w-full overflow-hidden lg:hidden">
+        <div className="relative h-full w-full overflow-hidden xl:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
             {solarToInverter <= 0.005 && <BaseFlowPath d={mobilePaths.solarToInverter} />}
             {batteryToInverter <= 0.005 && inverterToBattery <= 0.005 && <BaseFlowPath d={mobilePaths.batteryToInverter} />}
@@ -493,7 +493,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <MobileFlowNode className="left-[78%] top-[84%]" label="Load" value="0 W" icon={Home} tone="text-white" />
         </div>
       </div>
-      <div className="mt-3 hidden grid-cols-2 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur lg:grid 2xl:grid-cols-4">
+      <div className="mt-3 hidden grid-cols-2 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur xl:grid 2xl:grid-cols-4">
         <div className="rounded-2xl bg-white/35 px-4 py-3">
           <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Monthly Production</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">
@@ -515,11 +515,11 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
         <div className="rounded-2xl bg-white/35 px-4 py-3">
           <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Weather</p>
           <p className="data-readout mt-1 flex items-center gap-1 text-xl font-black text-slate-950">
-            <WeatherIcon className="h-4 w-4" /> {temperature ?? "--"} <span className="text-xs">°C</span>
+            {createElement(WeatherIcon, { className: "h-4 w-4" })} {temperature ?? "--"} <span className="text-xs">°C</span>
           </p>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 rounded-3xl border border-white/55 bg-white/45 p-4 backdrop-blur lg:hidden">
+      <div className="mt-4 grid gap-3 rounded-3xl border border-white/55 bg-white/45 p-4 backdrop-blur xl:hidden">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <p className="text-xs text-slate-500">Production</p>
@@ -542,7 +542,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <div>
             <p className="text-xs text-slate-500">Weather</p>
             <p className="data-readout mt-1 flex items-center gap-1 text-xl font-black text-slate-950">
-              <WeatherIcon className="h-4 w-4" /> {temperature ?? "--"} <span className="text-xs">°C</span>
+              {createElement(WeatherIcon, { className: "h-4 w-4" })} {temperature ?? "--"} <span className="text-xs">°C</span>
             </p>
           </div>
         </div>
@@ -1252,7 +1252,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+        <section className="grid gap-4 min-[1367px]:grid-cols-[0.92fr_1.08fr]">
           <EnergyFlow overview={data.overview} weather={weather} />
           <CctvCard
             title="Solar Camera"
