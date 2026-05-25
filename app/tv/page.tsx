@@ -144,11 +144,11 @@ function FlowNode({
   return (
     <foreignObject x={x - width / 2} y={y - height / 2} width={width} height={height}>
       <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-2 text-center shadow-2xl backdrop-blur">
-        <div className="flex items-center gap-1.5 mb-1">
-          <div className="rounded-full border border-indigo-50 bg-white/80 p-0.5">
-            <Icon className={`h-4.5 w-4.5 ${tone}`} />
+        <div className="flex items-center gap-2 mb-1">
+          <div className="rounded-full border border-indigo-50 bg-white/80 p-1">
+            <Icon className={`h-5.5 w-5.5 ${tone}`} />
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+          <span className={`${compact ? "text-lg" : "text-xl"} font-black uppercase tracking-[0.05em] text-slate-500`}>
             {label}
           </span>
         </div>
@@ -321,7 +321,7 @@ function TvCctvPlayer({
   const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : "bg-amber-300";
 
   return (
-    <section className="glass premium-panel flex flex-col rounded-3xl p-4 flex-1 min-h-0">
+    <section className="glass premium-panel flex flex-col rounded-3xl p-4">
       {/* Header bar matching main dashboard */}
       <div className="flex items-center justify-between mb-2.5">
         <div>
@@ -368,10 +368,10 @@ function TvCctvPlayer({
         </div>
       </div>
 
-      {/* Video Content area - Using bg-black and object-contain to display full video without weird cutoffs */}
+      {/* Video Content area - Using bg-black and object-cover to expand the image to fill the card completely */}
       <div 
         onClick={handleContainerClick}
-        className="relative flex-1 min-h-0 rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg cursor-pointer"
+        className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg cursor-pointer"
       >
         {src ? (
           <video
@@ -380,7 +380,7 @@ function TvCctvPlayer({
             muted
             playsInline
             controls={false}
-            className="w-full h-full bg-black object-contain"
+            className="w-full h-full bg-black object-cover"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/40">
@@ -663,7 +663,7 @@ export default function TvDashboardPage() {
         </div>
 
         {/* RIGHT COLUMN: Stacked CCTV Live Feeds (52% width) */}
-        <div className="w-[52%] h-full flex flex-col gap-4">
+        <div className="w-[52%] h-full flex flex-col gap-4 overflow-y-auto pr-1">
           <TvCctvPlayer
             src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
             label="Solar Camera"
