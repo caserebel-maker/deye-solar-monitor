@@ -1,9 +1,11 @@
 package com.example.solar725
 
 import android.annotation.SuppressLint
+import android.net.http.SslError
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.ViewGroup
+import android.webkit.SslErrorHandler
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -41,11 +43,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // Intercept remote keys (Center D-pad, Enter, Back, Menu) to reload page
+        // Intercept BACK and MENU keys to reload the page.
+        // We leave DPAD_CENTER and ENTER alone so the user can click lens toggle buttons and video play controls.
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_CENTER,
-                KeyEvent.KEYCODE_ENTER,
                 KeyEvent.KEYCODE_BACK,
                 KeyEvent.KEYCODE_MENU -> {
                     webView?.reload()
@@ -72,6 +73,11 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
                     @Deprecated("Deprecated in Java")
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                         return false // Force navigation to stay inside this WebView
+                    }
+
+                    // Ignore SSL errors (crucial for local/private network streams like go2rtc/Tailscale on TV)
+                    override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                        handler?.proceed()
                     }
                 }
 

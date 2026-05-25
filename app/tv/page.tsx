@@ -80,7 +80,48 @@ function FlowPath({ d, value, color, delay = "0s" }: { d: string; value: number;
   );
 }
 
-/* Flow Node Component - Significantly expanded size (+100% larger labels, values, and box dimensions) */
+function renderValue(value: string, compact: boolean) {
+  const powerRegex = /^([\d.-]+)\s*(kW|W)$/i;
+  const match = value.match(powerRegex);
+  if (match) {
+    const num = match[1];
+    const unit = match[2];
+    return (
+      <div className="flex items-baseline justify-center leading-none mt-1">
+        <strong className="data-readout text-slate-950 font-black text-5xl tracking-tighter">
+          {num}
+        </strong>
+        <span className="text-xs font-black text-slate-500 ml-0.5">
+          {unit}
+        </span>
+      </div>
+    );
+  }
+
+  if (value.includes("·")) {
+    const parts = value.split("·").map((p) => p.trim());
+    const soc = parts[0];
+    const power = parts[1];
+    return (
+      <div className="flex flex-col items-center justify-center leading-none mt-0.5">
+        <strong className="data-readout text-slate-950 font-black text-5xl tracking-tighter">
+          {soc}
+        </strong>
+        <span className="text-[10px] font-bold text-slate-500 mt-1 leading-none">
+          {power}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <strong className="data-readout text-slate-950 font-black text-4xl leading-none mt-1 tracking-tight">
+      {value}
+    </strong>
+  );
+}
+
+/* Flow Node Component - Optimized side-by-side layout for maximum text space */
 function FlowNode({
   x,
   y,
@@ -98,20 +139,20 @@ function FlowNode({
   tone: string;
   compact?: boolean;
 }) {
-  const width = compact ? 176 : 200;
-  const height = compact ? 106 : 124;
+  const width = compact ? 176 : 210;
+  const height = compact ? 90 : 106;
   return (
     <foreignObject x={x - width / 2} y={y - height / 2} width={width} height={height}>
       <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-2 text-center shadow-2xl backdrop-blur">
-        <div className={`rounded-full border border-indigo-100 bg-white/70 ${compact ? "p-2" : "p-2.5"}`}>
-          <Icon className={`${compact ? "h-6 w-6" : "h-7 w-7"} ${tone}`} />
+        <div className="flex items-center gap-1.5 mb-1">
+          <div className="rounded-full border border-indigo-50 bg-white/80 p-0.5">
+            <Icon className={`h-4.5 w-4.5 ${tone}`} />
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+            {label}
+          </span>
         </div>
-        <span className={`${compact ? "mt-1.5 text-xs tracking-[0.14em]" : "mt-2 text-sm tracking-[0.16em]"} font-bold uppercase text-slate-500`}>
-          {label}
-        </span>
-        <strong className={`data-readout text-slate-950 font-black mt-0.5 ${compact ? "text-xl" : "text-2xl"}`}>
-          {value}
-        </strong>
+        {renderValue(value, compact)}
       </div>
     </foreignObject>
   );
@@ -232,7 +273,9 @@ function TvCctvPlayer({
     video.addEventListener("error", onError);
 
     video.src = streamUrl;
-    video.play().catch(() => {});
+    video.play().catch((err) => {
+      console.log("Auto-play was blocked, waiting for connection or click:", err);
+    });
 
     return () => {
       video.removeEventListener("playing", onPlaying);
@@ -266,6 +309,14 @@ function TvCctvPlayer({
       setRestarting(false);
     }
   }, [src, restarting]);
+
+  // Fallback interactive click handler to trigger play on click/tap
+  const handleContainerClick = () => {
+    const video = videoRef.current;
+    if (video) {
+      video.play().catch((err) => console.log("Play on click failed: ", err));
+    }
+  };
 
   const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : "bg-amber-300";
 
@@ -318,7 +369,10 @@ function TvCctvPlayer({
       </div>
 
       {/* Video Content area - Using bg-black and object-contain to display full video without weird cutoffs */}
-      <div className="relative flex-1 min-h-0 rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg">
+      <div 
+        onClick={handleContainerClick}
+        className="relative flex-1 min-h-0 rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg cursor-pointer"
+      >
         {src ? (
           <video
             ref={videoRef}
@@ -438,16 +492,16 @@ export default function TvDashboardPage() {
   const metrics = data?.overview.metrics;
   const flows = data?.overview.flows;
 
-  // Paths for Energy Flow SVG diagram
+  // Paths for Energy Flow SVG diagram (shifted up and down to match node layout coordinates)
   const paths = useMemo(
     () => ({
-      solarToInverter: "M 90 119 V 175 Q 90 195 110 195 H 280",
-      batteryToInverter: "M 90 281 V 225 Q 90 205 110 205 H 280",
-      inverterToBattery: "M 280 205 H 110 Q 90 205 90 225 V 281",
-      gridToInverter: "M 610 119 V 175 Q 610 195 590 195 H 420",
-      inverterToGrid: "M 420 195 H 590 Q 610 195 610 175 V 119",
-      inverterToUps: "M 350 248 V 281",
-      inverterToHome: "M 420 205 H 590 Q 610 205 610 225 V 281",
+      solarToInverter: "M 90 100 V 115 Q 90 135 110 135 H 245",
+      batteryToInverter: "M 90 300 V 165 Q 90 145 110 145 H 245",
+      inverterToBattery: "M 245 145 H 110 Q 90 145 90 165 V 300",
+      gridToInverter: "M 610 100 V 115 Q 610 135 590 135 H 455",
+      inverterToGrid: "M 455 135 H 590 Q 610 135 610 115 V 100",
+      inverterToUps: "M 350 193 V 300",
+      inverterToHome: "M 455 145 H 590 Q 610 145 610 165 V 300",
     }),
     []
   );
@@ -522,7 +576,7 @@ export default function TvDashboardPage() {
               </div>
             </div>
 
-            {/* SVG Canvas Area */}
+            {/* SVG Canvas Area - Shifted y positions to expand spacing and prevent vertical overlaps */}
             <div className="energy-flow-canvas mt-3 flex-1 min-h-0 w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid flex items-center justify-center">
               <svg viewBox="0 0 700 400" className="h-full w-full max-h-full" preserveAspectRatio="xMidYMid meet">
                 <defs>
@@ -545,13 +599,14 @@ export default function TvDashboardPage() {
                 <FlowPath d={paths.inverterToGrid} value={inverterToGrid} color="#38bdf8" delay="-0.9s" />
                 <FlowPath d={paths.inverterToUps} value={inverterToUps} color="#a78bfa" delay="-1.25s" />
                 
-                <FlowNode compact x={90} y={80} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
-                <FlowNode x={350} y={200} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-                <FlowNode compact x={350} y={320} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+                {/* Repositioned: Solar/Grid moved up (y=55), Inverter moved up (y=140), Battery/Load/Home moved down (y=345) */}
+                <FlowNode compact x={90} y={55} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
+                <FlowNode x={350} y={140} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
+                <FlowNode compact x={350} y={345} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
                 <FlowNode
                   compact
                   x={90}
-                  y={320}
+                  y={345}
                   label="Battery"
                   value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
                   icon={BatteryFull}
@@ -560,13 +615,13 @@ export default function TvDashboardPage() {
                 <FlowNode
                   compact
                   x={610}
-                  y={80}
+                  y={55}
                   label={gridLabel}
                   value={formatPower(gridValue)}
                   icon={PlugZap}
                   tone="text-blue-500"
                 />
-                <FlowNode compact x={610} y={320} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
+                <FlowNode compact x={610} y={345} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
               </svg>
             </div>
 
@@ -574,28 +629,28 @@ export default function TvDashboardPage() {
             <div className="mt-3 grid grid-cols-4 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3.5 backdrop-blur">
               <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Monthly Production</p>
-                <p className="data-readout mt-1 text-2xl font-black text-slate-950 truncate leading-none">
-                  {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
+                <p className="data-readout mt-1 text-4xl font-black text-slate-950 truncate leading-none">
+                  {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-sm font-bold text-slate-500 ml-0.5">kWh</span>
                 </p>
               </div>
               <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Monthly Load</p>
-                <p className="data-readout mt-1 text-2xl font-black text-slate-950 truncate leading-none">
-                  {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
+                <p className="data-readout mt-1 text-4xl font-black text-slate-950 truncate leading-none">
+                  {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-sm font-bold text-slate-500 ml-0.5">kWh</span>
                 </p>
               </div>
               <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Daily Production</p>
-                <p className="data-readout mt-1 text-2xl font-black text-slate-950 truncate leading-none">
-                  {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-xs font-bold">kWh</span>
+                <p className="data-readout mt-1 text-4xl font-black text-slate-950 truncate leading-none">
+                  {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-sm font-bold text-slate-500 ml-0.5">kWh</span>
                 </p>
               </div>
               <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
                 <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Weather</p>
-                <p className="data-readout mt-1 flex items-center gap-1.5 text-2xl font-black text-slate-950 truncate leading-none">
+                <p className="data-readout mt-1 flex items-center gap-1.5 text-4xl font-black text-slate-950 truncate leading-none">
                   {weather && weather.source === "live" ? (
                     <>
-                      {createElement(weatherIcon(weather.current.weatherCode, weather.current.isDay), { className: "h-5 w-5 shrink-0 text-amber-400" })}
+                      {createElement(weatherIcon(weather.current.weatherCode, weather.current.isDay), { className: "h-6 w-6 shrink-0 text-amber-400" })}
                       <span>{Math.round(weather.current.temperatureC)}°C</span>
                     </>
                   ) : (
