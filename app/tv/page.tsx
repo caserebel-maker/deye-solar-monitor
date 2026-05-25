@@ -237,6 +237,7 @@ function TvCctvPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
+  const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
 
   // Compute fMP4 stream URL with lens options
   const streamUrl = useMemo(() => {
@@ -266,7 +267,13 @@ function TvCctvPlayer({
     const onWaiting = () => setStatus("loading");
     const onStalled = () => setStatus("loading");
     const onError = () => setStatus("error");
+    const onLoadedMetadata = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        setVideoAspectRatio(video.videoWidth / video.videoHeight);
+      }
+    };
 
+    video.addEventListener("loadedmetadata", onLoadedMetadata);
     video.addEventListener("playing", onPlaying);
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("stalled", onStalled);
@@ -278,6 +285,7 @@ function TvCctvPlayer({
     });
 
     return () => {
+      video.removeEventListener("loadedmetadata", onLoadedMetadata);
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("stalled", onStalled);
@@ -319,9 +327,10 @@ function TvCctvPlayer({
   };
 
   const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : "bg-amber-300";
+  const activeLensLabel = lens === "lens_b" ? "Lens B · Wide" : "Lens A · Fixed";
 
   return (
-    <section className="glass premium-panel flex flex-col rounded-3xl p-4 flex-1 min-h-0">
+    <section className="glass premium-panel flex min-h-0 flex-1 basis-1/2 flex-col rounded-3xl p-4">
       {/* Header bar matching main dashboard */}
       <div className="flex items-center justify-between mb-2.5">
         <div>
@@ -368,22 +377,32 @@ function TvCctvPlayer({
         </div>
       </div>
 
-      {/* Video Content area - Let video size itself at natural aspect ratio, no cropping, no black bars */}
+      {/* Video area: preserve native aspect ratio and let the panel background fill leftover space. */}
       <div 
         onClick={handleContainerClick}
-        className="relative flex-1 min-h-0 rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg cursor-pointer flex items-center"
+        className="relative flex min-h-0 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(56,189,248,0.18),transparent_24rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.9))] shadow-lg"
       >
         {src ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            muted
-            playsInline
-            controls={false}
-            className="w-full bg-slate-950"
-          />
+          <div
+            className="flex h-full w-full items-center justify-center"
+            style={{ aspectRatio: videoAspectRatio }}
+          >
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              controls={false}
+              className="block max-h-full max-w-full bg-transparent object-contain"
+              style={{
+                aspectRatio: videoAspectRatio,
+                width: "100%",
+                height: "auto",
+              }}
+            />
+          </div>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/40">
+          <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900/40">
             <Camera className="h-8 w-8 text-white/20 mx-auto" />
             <p className="mt-2 text-xs text-white/50">Camera URL not configured</p>
           </div>
@@ -393,7 +412,7 @@ function TvCctvPlayer({
         <div className="absolute top-2 left-2 right-2 flex justify-between items-center bg-slate-950/80 backdrop-blur px-2.5 py-1 rounded-lg text-[10px] text-white/90 z-10 border border-white/5">
           <span className="flex items-center gap-1.5 font-medium">
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
-            {status === "live" ? "Lens A · Fixed" : "Connecting..."}
+            {status === "live" ? activeLensLabel : "Connecting..."}
           </span>
           <span className="text-[9px] font-bold text-white/50 bg-white/10 px-1 py-0.5 rounded font-mono uppercase">fMP4</span>
         </div>
