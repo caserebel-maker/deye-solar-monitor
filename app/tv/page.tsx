@@ -321,7 +321,7 @@ function TvCctvPlayer({
   const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : "bg-amber-300";
 
   return (
-    <section className="glass premium-panel flex flex-col rounded-3xl p-4">
+    <section className="glass premium-panel flex flex-col rounded-3xl p-4 flex-1 min-h-0">
       {/* Header bar matching main dashboard */}
       <div className="flex items-center justify-between mb-2.5">
         <div>
@@ -368,10 +368,10 @@ function TvCctvPlayer({
         </div>
       </div>
 
-      {/* Video Content area - Using bg-black and object-cover to expand the image to fill the card completely */}
+      {/* Video Content area - Let video size itself at natural aspect ratio, no cropping, no black bars */}
       <div 
         onClick={handleContainerClick}
-        className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg cursor-pointer"
+        className="relative flex-1 min-h-0 rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg cursor-pointer flex items-center"
       >
         {src ? (
           <video
@@ -380,7 +380,7 @@ function TvCctvPlayer({
             muted
             playsInline
             controls={false}
-            className="w-full h-full bg-black object-cover"
+            className="w-full bg-slate-950"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/40">
@@ -663,7 +663,7 @@ export default function TvDashboardPage() {
         </div>
 
         {/* RIGHT COLUMN: Stacked CCTV Live Feeds (52% width) */}
-        <div className="w-[52%] h-full flex flex-col gap-4 overflow-y-auto pr-1">
+        <div className="w-[52%] h-full flex flex-col gap-4">
           <TvCctvPlayer
             src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
             label="Solar Camera"
