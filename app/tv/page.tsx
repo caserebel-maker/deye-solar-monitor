@@ -1,6 +1,7 @@
 "use client";
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Hls from "hls.js";
 import {
   Activity,
   BatteryFull,
@@ -238,29 +239,12 @@ function TvCctvPlayer({
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
-  const [supportsNativeHls, setSupportsNativeHls] = useState(false);
 
-  // Detect native HLS support (Safari, Android WebView / MediaPlayer)
-  useEffect(() => {
-    const video = document.createElement("video");
-    const canPlayHls = 
-      video.canPlayType("application/vnd.apple.mpegurl") || 
-      video.canPlayType("application/x-mpegURL");
-    setSupportsNativeHls(!!canPlayHls);
-  }, []);
-
-  // Compute stream URL with lens options
+  // Compute stream URL with lens options (always HLS for Hls.js compatibility)
   const streamUrl = useMemo(() => {
     if (!src) return undefined;
     try {
       const u = new URL(src);
-      
-      // On platforms supporting native HLS (e.g. Android TV WebView), prefer the HLS .m3u8 stream.
-      // Low-end TV hardware decoders often fail/crash on fragmented MP4 (.mp4) stream.
-      if (!supportsNativeHls) {
-        u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
-      }
-      
       const originalSrc = u.searchParams.get("src") || "tapo";
       const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
       const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`; // Force SD stream for TV stability
@@ -271,7 +255,7 @@ function TvCctvPlayer({
     } catch {
       return src;
     }
-  }, [src, lens, restartCount, supportsNativeHls]);
+  }, [src, lens, restartCount]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -294,10 +278,53 @@ function TvCctvPlayer({
     video.addEventListener("stalled", onStalled);
     video.addEventListener("error", onError);
 
-    video.src = streamUrl;
-    video.play().catch((err) => {
-      console.log("Auto-play was blocked, waiting for connection or click:", err);
-    });
+    let hlsInstance: Hls | null = null;
+
+    if (Hls.isSupported()) {
+      hlsInstance = new Hls({
+        maxBufferSize: 0, // Disable buffer size limits to prevent memory pressure on budget TV
+        maxBufferLength: 4, // Minimal buffer for near-real-time streaming
+        liveBackBufferLength: 0,
+        enableWorker: true, // Run parser in Web Worker to prevent UI stuttering
+      });
+
+      hlsInstance.loadSource(streamUrl);
+      hlsInstance.attachMedia(video);
+
+      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch((err) => {
+          console.log("hls.js playback blocked:", err);
+        });
+      });
+
+      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log("hls.js fatal network error, retrying startLoad...");
+              hlsInstance?.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log("hls.js fatal media error, retrying recoverMediaError...");
+              hlsInstance?.recoverMediaError();
+              break;
+            default:
+              console.log("hls.js unrecoverable fatal error");
+              setStatus("error");
+              break;
+          }
+        }
+      });
+    } else if (video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")) {
+      // Native HLS fallback (e.g. Safari / iOS)
+      video.src = streamUrl;
+      video.play().catch((err) => {
+        console.log("Native HLS video playback blocked:", err);
+      });
+    } else {
+      console.log("HLS is not supported on this platform.");
+      setStatus("error");
+    }
 
     return () => {
       video.removeEventListener("loadedmetadata", onLoadedMetadata);
@@ -305,8 +332,13 @@ function TvCctvPlayer({
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("stalled", onStalled);
       video.removeEventListener("error", onError);
-      video.removeAttribute("src");
-      video.load();
+
+      if (hlsInstance) {
+        hlsInstance.destroy();
+      } else {
+        video.removeAttribute("src");
+        video.load();
+      }
     };
   }, [streamUrl, retryCount]);
 
@@ -349,14 +381,12 @@ function TvCctvPlayer({
       {/* Header bar matching main dashboard */}
       <div className="flex items-center justify-between mb-2.5">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
-          <h2 className="mt-1 text-lg font-semibold text-slate-950 leading-none">{label}</h2>
-          <p className="mt-1 text-[10px] font-medium text-slate-500">
-            {subtitle} · {lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed"}
-          </p>
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-indigo-400/90 leading-none">CCTV Security</p>
+          <h2 className="mt-1 text-sm font-black text-slate-900 leading-tight">{label}</h2>
+          <p className="mt-0.5 text-[10px] font-black text-slate-500/80 leading-tight">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Lens A/B toggle buttons - identical styling to main page */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Lens toggles */}
           <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[10px] font-bold">
             <button
               type="button"
@@ -429,7 +459,7 @@ function TvCctvPlayer({
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {status === "live" ? activeLensLabel : "Connecting..."}
           </span>
-          <span className="text-[9px] font-bold text-white/50 bg-white/10 px-1 py-0.5 rounded font-mono uppercase">{supportsNativeHls ? "HLS" : "fMP4"}</span>
+          <span className="text-[9px] font-bold text-white/50 bg-white/10 px-1 py-0.5 rounded font-mono uppercase">HLS</span>
         </div>
 
         {/* Connection error panel */}
