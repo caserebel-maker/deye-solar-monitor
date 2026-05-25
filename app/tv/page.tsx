@@ -5,12 +5,17 @@ import {
   Activity,
   BatteryFull,
   Camera,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
   CloudSun,
   CloudOff,
   Cpu,
   Home,
   PlugZap,
   RefreshCw,
+  Square,
   Sun,
   Zap,
 } from "lucide-react";
@@ -75,6 +80,7 @@ function FlowPath({ d, value, color, delay = "0s" }: { d: string; value: number;
   );
 }
 
+/* Flow Node Component - Significantly expanded size (+100% larger labels, values, and box dimensions) */
 function FlowNode({
   x,
   y,
@@ -92,32 +98,127 @@ function FlowNode({
   tone: string;
   compact?: boolean;
 }) {
-  const width = compact ? 116 : 140;
-  const height = compact ? 78 : 96;
+  const width = compact ? 176 : 200;
+  const height = compact ? 106 : 124;
   return (
     <foreignObject x={x - width / 2} y={y - height / 2} width={width} height={height}>
       <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-2 text-center shadow-2xl backdrop-blur">
-        <div className={`rounded-full border border-indigo-100 bg-white/70 ${compact ? "p-1.5" : "p-2"}`}>
-          <Icon className={`${compact ? "h-4 w-4" : "h-5 w-5"} ${tone}`} />
+        <div className={`rounded-full border border-indigo-100 bg-white/70 ${compact ? "p-2" : "p-2.5"}`}>
+          <Icon className={`${compact ? "h-6 w-6" : "h-7 w-7"} ${tone}`} />
         </div>
-        <span className={`${compact ? "mt-1 text-[9px] tracking-[0.12em]" : "mt-2 text-[11px] tracking-[0.14em]"} font-medium uppercase text-slate-500`}>
+        <span className={`${compact ? "mt-1.5 text-xs tracking-[0.14em]" : "mt-2 text-sm tracking-[0.16em]"} font-bold uppercase text-slate-500`}>
           {label}
         </span>
-        <strong className={`data-readout text-slate-950 ${compact ? "text-xs" : "text-sm"}`}>{value}</strong>
+        <strong className={`data-readout text-slate-950 font-black mt-0.5 ${compact ? "text-xl" : "text-2xl"}`}>
+          {value}
+        </strong>
       </div>
     </foreignObject>
   );
 }
 
-/* TV CCTV Player Component - Forcing SD stream for TV stability with auto-reconnect */
-function TvCctvPlayer({ src, label, subtitle }: { src: string; label: string; subtitle: string }) {
+/* PTZ Control Panel for TV WebView */
+function TvCctvPtzControls({ cameraIp }: { cameraIp?: string }) {
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = useCallback(async (direction: string, duration_ms = 400) => {
+    setPending(direction);
+    setError(null);
+    try {
+      const res = await fetch("/api/cctv/ptz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ direction, duration_ms, ip: cameraIp }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "PTZ command failed");
+    } finally {
+      setPending(null);
+    }
+  }, [cameraIp]);
+
+  const btn = (label: string, dir: string, Icon: typeof ChevronUp, classes = "") =>
+    createElement(
+      "button",
+      {
+        type: "button",
+        "aria-label": label,
+        disabled: pending !== null,
+        onClick: () => send(dir),
+        className: `flex h-9 w-9 items-center justify-center rounded-xl border border-white/12 bg-white/5 text-white/82 transition hover:bg-white/12 hover:text-white disabled:opacity-40 ${classes}`,
+      },
+      createElement(Icon, { className: "h-4.5 w-4.5" }),
+    );
+
+  return (
+    <div className="mt-2.5 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/55 px-3.5 py-2">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] eyebrow-text-inset">Pan / Tilt</p>
+        <p className="mt-0.5 text-[10px] text-white/55 truncate max-w-[180px]">
+          {error ? <span className="text-rose-300">{error}</span> : pending ? `Moving ${pending}…` : "ขยับกล้องเลนส์ B"}
+        </p>
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        <span />
+        {btn("ขยับขึ้น", "up", ChevronUp)}
+        <span />
+        {btn("ซ้าย", "left", ChevronLeft)}
+        {btn("หยุด", "stop", Square, "text-rose-300")}
+        {btn("ขวา", "right", ChevronRight)}
+        <span />
+        {btn("ขยับลง", "down", ChevronDown)}
+        <span />
+      </div>
+    </div>
+  );
+}
+
+/* TV CCTV Player Component - Forcing SD stream, support Lens Toggle, PTZ control, and object-contain */
+function TvCctvPlayer({
+  src,
+  label,
+  subtitle,
+  cameraIp,
+}: {
+  src: string;
+  label: string;
+  subtitle: string;
+  cameraIp: string;
+}) {
+  const [lens, setLens] = useState<"lens_a" | "lens_b">("lens_a");
+  const [restartCount, setRestartCount] = useState(0);
+  const [restarting, setRestarting] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
 
+  // Compute fMP4 stream URL with lens options
+  const streamUrl = useMemo(() => {
+    if (!src) return undefined;
+    try {
+      const u = new URL(src);
+      u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
+      
+      const originalSrc = u.searchParams.get("src") || "tapo";
+      const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
+      const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`; // Force SD stream for TV stability
+      
+      u.searchParams.set("src", targetSrc);
+      u.searchParams.set("_t", `${Date.now()}-${restartCount}`); // Cache buster
+      return u.toString();
+    } catch {
+      return src;
+    }
+  }, [src, lens, restartCount]);
+
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !streamUrl) return;
 
     setStatus("loading");
     const onPlaying = () => setStatus("live");
@@ -130,21 +231,7 @@ function TvCctvPlayer({ src, label, subtitle }: { src: string; label: string; su
     video.addEventListener("stalled", onStalled);
     video.addEventListener("error", onError);
 
-    // Format HLS stream URL to fragmented MP4 with target stream _sd for stability
-    let targetUrl = src;
-    try {
-      const u = new URL(src);
-      u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
-      const originalSrc = u.searchParams.get("src") || "tapo";
-      const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
-      u.searchParams.set("src", `${prefix}_sd`); // Force SD stream for TV stability
-      u.searchParams.set("_t", Date.now().toString()); // Cache buster
-      targetUrl = u.toString();
-    } catch {
-      // Fallback
-    }
-
-    video.src = targetUrl;
+    video.src = streamUrl;
     video.play().catch(() => {});
 
     return () => {
@@ -155,8 +242,9 @@ function TvCctvPlayer({ src, label, subtitle }: { src: string; label: string; su
       video.removeAttribute("src");
       video.load();
     };
-  }, [src, retryCount]);
+  }, [streamUrl, retryCount]);
 
+  // Reconnect watchdog: if stuck in loading for 5 seconds, reload the stream source
   useEffect(() => {
     if (status !== "loading") return;
     const timer = setTimeout(() => {
@@ -166,27 +254,70 @@ function TvCctvPlayer({ src, label, subtitle }: { src: string; label: string; su
     return () => clearTimeout(timer);
   }, [status, label]);
 
+  const restartStream = useCallback(async () => {
+    if (!src || restarting) return;
+    setRestarting(true);
+    try {
+      const origin = new URL(src).origin;
+      await fetch(`${origin}/api/restart`, { method: "POST", mode: "no-cors" }).catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      setRestartCount((n) => n + 1);
+    } finally {
+      setRestarting(false);
+    }
+  }, [src, restarting]);
+
   const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : "bg-amber-300";
 
   return (
     <section className="glass premium-panel flex flex-col rounded-3xl p-4 flex-1 min-h-0">
       {/* Header bar matching main dashboard */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2.5">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
           <h2 className="mt-1 text-lg font-semibold text-slate-950 leading-none">{label}</h2>
           <p className="mt-1 text-[10px] font-medium text-slate-500">
-            {subtitle}
+            {subtitle} · {lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed"}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Lens A/B toggle buttons - identical styling to main page */}
+          <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[10px] font-bold">
+            <button
+              type="button"
+              onClick={() => setLens("lens_a")}
+              className={`px-2.5 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+            >
+              Lens A
+            </button>
+            <button
+              type="button"
+              onClick={() => setLens("lens_b")}
+              className={`px-2.5 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+            >
+              Lens B
+            </button>
+          </div>
+
+          {/* Restart button */}
+          <button
+            aria-label="Restart stream"
+            onClick={restartStream}
+            disabled={restarting}
+            type="button"
+            className="rounded-xl border border-indigo-100 bg-white/55 p-1.5 text-indigo-500 transition disabled:opacity-50"
+            title="Restart stream"
+          >
+            <RefreshCw className={`h-4 w-4 ${restarting ? "animate-spin" : ""}`} />
+          </button>
+
           <div className="rounded-xl border border-indigo-100 bg-white/55 p-1.5">
             <Camera className="h-4 w-4 text-indigo-500" />
           </div>
         </div>
       </div>
 
-      {/* Video Content area */}
+      {/* Video Content area - Using bg-black and object-contain to display full video without weird cutoffs */}
       <div className="relative flex-1 min-h-0 rounded-2xl overflow-hidden bg-slate-950 border border-white/10 shadow-lg">
         {src ? (
           <video
@@ -195,7 +326,7 @@ function TvCctvPlayer({ src, label, subtitle }: { src: string; label: string; su
             muted
             playsInline
             controls={false}
-            className="w-full h-full object-cover"
+            className="w-full h-full bg-black object-contain"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/40">
@@ -222,6 +353,9 @@ function TvCctvPlayer({ src, label, subtitle }: { src: string; label: string; su
           </div>
         )}
       </div>
+
+      {/* PTZ controls displayed if Lens B is selected, identical to main page */}
+      {lens === "lens_b" && <TvCctvPtzControls cameraIp={cameraIp} />}
     </section>
   );
 }
@@ -436,32 +570,32 @@ export default function TvDashboardPage() {
               </svg>
             </div>
 
-            {/* Bottom 4-column Stats Row - Matches main page layout exactly */}
-            <div className="mt-3 grid grid-cols-4 gap-2.5 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur">
-              <div className="rounded-2xl bg-white/35 px-3 py-2 flex flex-col justify-center min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] eyebrow-text truncate">Monthly Production</p>
-                <p className="data-readout mt-0.5 text-base font-black text-slate-950 truncate">
-                  {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-[10px] font-semibold">kWh</span>
+            {/* Bottom 4-column Stats Row - +100% larger text layout */}
+            <div className="mt-3 grid grid-cols-4 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3.5 backdrop-blur">
+              <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Monthly Production</p>
+                <p className="data-readout mt-1 text-2xl font-black text-slate-950 truncate leading-none">
+                  {metrics.monthlyProductionKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
                 </p>
               </div>
-              <div className="rounded-2xl bg-white/35 px-3 py-2 flex flex-col justify-center min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] eyebrow-text truncate">Monthly Load</p>
-                <p className="data-readout mt-0.5 text-base font-black text-slate-950 truncate">
-                  {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-[10px] font-semibold">kWh</span>
+              <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Monthly Load</p>
+                <p className="data-readout mt-1 text-2xl font-black text-slate-950 truncate leading-none">
+                  {metrics.monthlyLoadKwh.toFixed(1)} <span className="text-xs font-bold">kWh</span>
                 </p>
               </div>
-              <div className="rounded-2xl bg-white/35 px-3 py-2 flex flex-col justify-center min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] eyebrow-text truncate">Daily Production</p>
-                <p className="data-readout mt-0.5 text-base font-black text-slate-950 truncate">
-                  {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-[10px] font-semibold">kWh</span>
+              <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Daily Production</p>
+                <p className="data-readout mt-1 text-2xl font-black text-slate-950 truncate leading-none">
+                  {formatEnergyToday(metrics.todayProductionKwh)} <span className="text-xs font-bold">kWh</span>
                 </p>
               </div>
-              <div className="rounded-2xl bg-white/35 px-3 py-2 flex flex-col justify-center min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] eyebrow-text truncate">Weather</p>
-                <p className="data-readout mt-0.5 flex items-center gap-1 text-base font-black text-slate-950 truncate">
+              <div className="rounded-2xl bg-white/35 px-4 py-2.5 flex flex-col justify-center min-w-0">
+                <p className="text-xs font-bold uppercase tracking-[0.14em] eyebrow-text truncate">Weather</p>
+                <p className="data-readout mt-1 flex items-center gap-1.5 text-2xl font-black text-slate-950 truncate leading-none">
                   {weather && weather.source === "live" ? (
                     <>
-                      {createElement(weatherIcon(weather.current.weatherCode, weather.current.isDay), { className: "h-4 w-4 shrink-0 text-amber-400" })}
+                      {createElement(weatherIcon(weather.current.weatherCode, weather.current.isDay), { className: "h-5 w-5 shrink-0 text-amber-400" })}
                       <span>{Math.round(weather.current.temperatureC)}°C</span>
                     </>
                   ) : (
@@ -478,13 +612,15 @@ export default function TvDashboardPage() {
           <TvCctvPlayer
             src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
             label="Solar Camera"
-            subtitle="Tapo C545d · Lens A · Close-up & Fixed"
+            subtitle="Tapo C545d"
+            cameraIp="192.168.1.123"
           />
 
           <TvCctvPlayer
             src={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
             label="DLC"
-            subtitle="Tapo C545d · Lens A · Close-up & Fixed"
+            subtitle="Tapo C545d"
+            cameraIp="192.168.1.106"
           />
         </div>
       </div>
