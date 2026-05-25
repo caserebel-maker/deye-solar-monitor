@@ -343,13 +343,13 @@ function TvCctvPlayer({
     };
   }, [streamUrl, retryCount]);
 
-  // Reconnect watchdog: if stuck in loading for 5 seconds, reload the stream source
+  // Reconnect watchdog: if stuck in loading for 10 seconds, reload the stream source
   useEffect(() => {
     if (status !== "loading") return;
     const timer = setTimeout(() => {
-      console.log(`[TV-Kiosk] Stream stalled for 5s: ${label}. Reconnecting...`);
+      console.log(`[TV-Kiosk] Stream stalled for 10s: ${label}. Reconnecting...`);
       setRetryCount((c) => c + 1);
-    }, 5000);
+    }, 10000);
     return () => clearTimeout(timer);
   }, [status, label]);
 
