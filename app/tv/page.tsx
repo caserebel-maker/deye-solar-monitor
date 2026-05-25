@@ -301,7 +301,7 @@ function TvCctvPlayer({
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log("hls.js fatal network error, retrying startLoad...");
+              console.log("hls.js fatal network error details:", data.details, "response status:", data.response?.code, "text:", data.response?.text);
               hlsInstance?.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
