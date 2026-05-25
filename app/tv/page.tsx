@@ -262,6 +262,10 @@ function TvCctvPlayer({
     const video = videoRef.current;
     if (!video || !streamUrl) return;
 
+    // Guarantee video is muted programmatically to satisfy WebView autoplay policy
+    video.muted = true;
+    video.defaultMuted = true;
+
     setStatus("loading");
     const onPlaying = () => setStatus("live");
     const onWaiting = () => setStatus("loading");
