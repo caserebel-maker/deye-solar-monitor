@@ -95,6 +95,8 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
                 }
 
                 loadUrl("https://monitor-solar-inverter-deye-battery.vercel.app/tv")
+                requestFocus()
+                requestFocusFromTouch()
                 onWebViewCreated(this)
             }
         },

@@ -251,6 +251,7 @@ function TvCctvPlayer({
       
       u.searchParams.set("src", targetSrc);
       u.searchParams.set("_t", `${Date.now()}-${restartCount}`); // Cache buster
+      u.hash = "video"; // Force video-only track
       return u.toString();
     } catch {
       return src;
