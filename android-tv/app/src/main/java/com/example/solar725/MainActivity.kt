@@ -81,6 +81,8 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
                     }
                 }
 
+                clearCache(true)
+
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
@@ -89,6 +91,7 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
                     mediaPlaybackRequiresUserGesture = false // Allow fMP4 streams to autoplay on TV
                     useWideViewPort = true
                     loadWithOverviewMode = true
+                    cacheMode = WebSettings.LOAD_NO_CACHE
                 }
 
                 loadUrl("https://monitor-solar-inverter-deye-battery.vercel.app/tv")
