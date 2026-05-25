@@ -238,7 +238,6 @@ function TvCctvPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
-  const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
 
   // Compute stream URL with lens options (always HLS for Hls.js compatibility)
   const streamUrl = useMemo(() => {
@@ -271,13 +270,6 @@ function TvCctvPlayer({
     const onWaiting = () => setStatus("loading");
     const onStalled = () => setStatus("loading");
     const onError = () => setStatus("error");
-    const onLoadedMetadata = () => {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        setVideoAspectRatio(video.videoWidth / video.videoHeight);
-      }
-    };
-
-    video.addEventListener("loadedmetadata", onLoadedMetadata);
     video.addEventListener("playing", onPlaying);
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("stalled", onStalled);
@@ -332,7 +324,6 @@ function TvCctvPlayer({
     }
 
     return () => {
-      video.removeEventListener("loadedmetadata", onLoadedMetadata);
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("stalled", onStalled);
@@ -433,24 +424,14 @@ function TvCctvPlayer({
         className="relative flex min-h-0 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(56,189,248,0.18),transparent_24rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.9))] shadow-lg"
       >
         {src ? (
-          <div
-            className="flex h-full w-full items-center justify-center"
-            style={{ aspectRatio: videoAspectRatio }}
-          >
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              controls={false}
-              className="block max-h-full max-w-full bg-transparent object-contain"
-              style={{
-                aspectRatio: videoAspectRatio,
-                width: "100%",
-                height: "auto",
-              }}
-            />
-          </div>
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            controls={false}
+            className="block h-full w-full bg-transparent object-contain"
+          />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900/40">
             <Camera className="h-8 w-8 text-white/20 mx-auto" />
