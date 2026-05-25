@@ -238,13 +238,28 @@ function TvCctvPlayer({
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
   const [videoAspectRatio, setVideoAspectRatio] = useState<number>(16 / 9);
+  const [supportsNativeHls, setSupportsNativeHls] = useState(false);
 
-  // Compute fMP4 stream URL with lens options
+  // Detect native HLS support (Safari, Android WebView / MediaPlayer)
+  useEffect(() => {
+    const video = document.createElement("video");
+    const canPlayHls = 
+      video.canPlayType("application/vnd.apple.mpegurl") || 
+      video.canPlayType("application/x-mpegURL");
+    setSupportsNativeHls(!!canPlayHls);
+  }, []);
+
+  // Compute stream URL with lens options
   const streamUrl = useMemo(() => {
     if (!src) return undefined;
     try {
       const u = new URL(src);
-      u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
+      
+      // On platforms supporting native HLS (e.g. Android TV WebView), prefer the HLS .m3u8 stream.
+      // Low-end TV hardware decoders often fail/crash on fragmented MP4 (.mp4) stream.
+      if (!supportsNativeHls) {
+        u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
+      }
       
       const originalSrc = u.searchParams.get("src") || "tapo";
       const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
@@ -256,7 +271,7 @@ function TvCctvPlayer({
     } catch {
       return src;
     }
-  }, [src, lens, restartCount]);
+  }, [src, lens, restartCount, supportsNativeHls]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -414,7 +429,7 @@ function TvCctvPlayer({
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {status === "live" ? activeLensLabel : "Connecting..."}
           </span>
-          <span className="text-[9px] font-bold text-white/50 bg-white/10 px-1 py-0.5 rounded font-mono uppercase">fMP4</span>
+          <span className="text-[9px] font-bold text-white/50 bg-white/10 px-1 py-0.5 rounded font-mono uppercase">{supportsNativeHls ? "HLS" : "fMP4"}</span>
         </div>
 
         {/* Connection error panel */}
