@@ -48,6 +48,8 @@ import {
   PlugZap,
   RefreshCw,
   Sun,
+  Volume2,
+  VolumeX,
   Zap,
 } from "lucide-react";
 import type { Alarm, SolarAlarms, SolarHistory, SolarOverview } from "@/lib/deye-api";
@@ -777,6 +779,8 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
   // browsers handle without any negotiation channel.
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
+  const [isMuted, setIsMuted] = useState(true);
+  const [audioNotice, setAudioNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -793,6 +797,8 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
     video.addEventListener("error", onError);
 
     video.src = src;
+    video.muted = isMuted;
+    video.defaultMuted = isMuted;
     video.play().catch(() => {
       // Autoplay blocked → keep controls visible so user can tap.
     });
@@ -806,7 +812,34 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
       video.removeAttribute("src");
       video.load();
     };
-  }, [src]);
+  }, [src, isMuted]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = isMuted;
+    video.defaultMuted = isMuted;
+    if (!isMuted) {
+      video.volume = 1;
+    }
+  }, [isMuted]);
+
+  const toggleAudio = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const nextMuted = !video.muted;
+    video.muted = nextMuted;
+    video.defaultMuted = nextMuted;
+    if (!nextMuted) {
+      video.volume = 1;
+    }
+    setIsMuted(nextMuted);
+    setAudioNotice(null);
+    video.play().catch(() => {
+      setAudioNotice("กด Play บนวิดีโออีกครั้งเพื่อเปิดเสียง");
+    });
+  }, []);
 
   // Auto-recovery when stream is stuck in loading/waiting state
   useEffect(() => {
@@ -852,11 +885,27 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
         <video
           ref={videoRef}
           autoPlay
-          muted
+          muted={isMuted}
           playsInline
           controls
+          onVolumeChange={() => {
+            const video = videoRef.current;
+            if (video) setIsMuted(video.muted);
+          }}
           className={`h-full w-full bg-black ${compact ? "object-cover" : "object-contain"}`}
         />
+        <div className="absolute bottom-3 left-3 z-10 flex flex-col items-start gap-1">
+          <button
+            aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/82 px-3 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur transition hover:bg-slate-900"
+            onClick={toggleAudio}
+            type="button"
+          >
+            {isMuted ? <VolumeX className="h-4 w-4 text-amber-300" /> : <Volume2 className="h-4 w-4 text-emerald-300" />}
+            {isMuted ? "เปิดเสียง" : "มีเสียง"}
+          </button>
+          {audioNotice && <span className="rounded-xl bg-slate-950/82 px-2 py-1 text-[10px] text-amber-200">{audioNotice}</span>}
+        </div>
         {status === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
             <Camera className="h-9 w-9 text-rose-300" />

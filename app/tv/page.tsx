@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Square,
   Sun,
-  Zap,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import type { SolarOverview, SolarHistory } from "@/lib/deye-api";
 import type { WeatherForecast } from "@/lib/weather";
@@ -44,10 +45,6 @@ function weatherIcon(code: number, isDay = true) {
   if (code === 0) return isDay ? Sun : CloudSun;
   if (code === 1 || code === 2) return CloudSun;
   return CloudSun;
-}
-
-function weatherTone(code: number, isDay = true) {
-  return "text-amber-400";
 }
 
 /* Base Flow Path & Moving Flow Path for Energy Flow Matrix */
@@ -81,7 +78,7 @@ function FlowPath({ d, value, color, delay = "0s" }: { d: string; value: number;
   );
 }
 
-function renderValue(value: string, compact: boolean) {
+function renderValue(value: string) {
   const powerRegex = /^([\d.-]+)\s*(kW|W)$/i;
   const match = value.match(powerRegex);
   if (match) {
@@ -153,7 +150,7 @@ function FlowNode({
             {label}
           </span>
         </div>
-        {renderValue(value, compact)}
+        {renderValue(value)}
       </div>
     </foreignObject>
   );
@@ -238,6 +235,8 @@ function TvCctvPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
+  const [isMuted, setIsMuted] = useState(true);
+  const [audioNotice, setAudioNotice] = useState<string | null>(null);
 
   // Compute stream URL with lens options (always HLS for Hls.js compatibility)
   const streamUrl = useMemo(() => {
@@ -249,8 +248,8 @@ function TvCctvPlayer({
       const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`; // Force SD stream for TV stability
       
       u.searchParams.set("src", targetSrc);
-      u.searchParams.set("_t", `${Date.now()}-${restartCount}`); // Cache buster
-      u.hash = "video"; // Force video-only track
+      u.searchParams.set("_restart", `${restartCount}`); // Cache buster
+      u.hash = "";
       return u.toString();
     } catch {
       return src;
@@ -261,9 +260,10 @@ function TvCctvPlayer({
     const video = videoRef.current;
     if (!video || !streamUrl) return;
 
-    // Guarantee video is muted programmatically to satisfy WebView autoplay policy
-    video.muted = true;
-    video.defaultMuted = true;
+    // Start muted so TV/WebView autoplay is reliable. The on-screen audio
+    // button flips this after a real remote-control click.
+    video.muted = isMuted;
+    video.defaultMuted = isMuted;
 
     setStatus("loading");
     const onPlaying = () => setStatus("live");
@@ -336,7 +336,17 @@ function TvCctvPlayer({
         video.load();
       }
     };
-  }, [streamUrl, retryCount]);
+  }, [streamUrl, retryCount, isMuted]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = isMuted;
+    video.defaultMuted = isMuted;
+    if (!isMuted) {
+      video.volume = 1;
+    }
+  }, [isMuted]);
 
   // Reconnect watchdog: if stuck in loading for 10 seconds, reload the stream source
   useEffect(() => {
@@ -360,6 +370,23 @@ function TvCctvPlayer({
       setRestarting(false);
     }
   }, [src, restarting]);
+
+  const toggleAudio = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const nextMuted = !video.muted;
+    video.muted = nextMuted;
+    video.defaultMuted = nextMuted;
+    if (!nextMuted) {
+      video.volume = 1;
+    }
+    setIsMuted(nextMuted);
+    setAudioNotice(null);
+    video.play().catch(() => {
+      setAudioNotice("กด Play/OK อีกครั้ง");
+    });
+  }, []);
 
   // Fallback interactive click handler to trigger play on click/tap
   const handleContainerClick = () => {
@@ -427,9 +454,13 @@ function TvCctvPlayer({
           <video
             ref={videoRef}
             autoPlay
-            muted
+            muted={isMuted}
             playsInline
             controls={false}
+            onVolumeChange={() => {
+              const video = videoRef.current;
+              if (video) setIsMuted(video.muted);
+            }}
             className="block h-full w-full bg-transparent object-contain"
           />
         ) : (
@@ -447,6 +478,25 @@ function TvCctvPlayer({
           </span>
           <span className="text-[9px] font-bold text-white/50 bg-white/10 px-1 py-0.5 rounded font-mono uppercase">HLS</span>
         </div>
+
+        {/* Audio toggle: WebView/browsers need a user click before camera audio can play. */}
+        {src && (
+          <div className="absolute bottom-2 left-2 z-10 flex flex-col items-start gap-1">
+            <button
+              aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-slate-950/82 px-2.5 py-1.5 text-[10px] font-black text-white shadow-lg backdrop-blur"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleAudio();
+              }}
+              type="button"
+            >
+              {isMuted ? <VolumeX className="h-3.5 w-3.5 text-amber-300" /> : <Volume2 className="h-3.5 w-3.5 text-emerald-300" />}
+              {isMuted ? "เปิดเสียง" : "มีเสียง"}
+            </button>
+            {audioNotice && <span className="rounded-lg bg-slate-950/82 px-2 py-1 text-[9px] font-bold text-amber-200">{audioNotice}</span>}
+          </div>
+        )}
 
         {/* Connection error panel */}
         {status === "error" && src && (
@@ -525,7 +575,7 @@ export default function TvDashboardPage() {
 
   // 30-second telemetry polling
   useEffect(() => {
-    void loadData();
+    queueMicrotask(() => void loadData());
     const timer = setInterval(loadData, refreshMs);
     return () => clearInterval(timer);
   }, [loadData]);
