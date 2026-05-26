@@ -561,9 +561,19 @@ interface CctvCardProps {
   hasPtz?: boolean;
   envName: string;
   cameraIp?: string;
+  embedded?: boolean;
 }
 
-function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = false, envName, cameraIp }: CctvCardProps) {
+function CctvCard({
+  title,
+  subtitle,
+  baseUrl,
+  hasLensToggle = false,
+  hasPtz = false,
+  envName,
+  cameraIp,
+  embedded = false,
+}: CctvCardProps) {
   const [lens, setLens] = useState<"lens_a" | "lens_b">("lens_a");
   const [restartCount, setRestartCount] = useState(0);
   const [restarting, setRestarting] = useState(false);
@@ -612,7 +622,7 @@ function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = fa
   }, [baseUrl, restarting]);
 
   return (
-    <section className="glass premium-panel flex flex-col rounded-3xl p-5">
+    <section className={embedded ? "flex flex-col" : "glass premium-panel flex flex-col rounded-3xl p-5"}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
@@ -901,7 +911,7 @@ function CctvLivePlayer({
             const video = videoRef.current;
             if (video) onMuteChange(video.muted);
           }}
-          className="h-full w-full bg-black object-cover"
+          className="h-full w-full bg-black object-contain"
         />
         {status === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
@@ -1302,25 +1312,34 @@ export default function DashboardPage() {
           <div className="lg:sticky lg:top-6 lg:self-start">
             <EnergyFlow overview={data.overview} weather={weather} />
           </div>
-          <div className="flex flex-col gap-4 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-2 custom-scrollbar">
-            <CctvCard
-              title="Solar Camera"
-              subtitle="Tapo C545d"
-              baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL}
-              hasLensToggle={true}
-              hasPtz={true}
-              envName="NEXT_PUBLIC_CCTV_HLS_URL"
-              cameraIp="192.168.1.111"
-            />
-            <CctvCard
-              title="DLC"
-              subtitle="Tapo C545d"
-              baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2}
-              hasLensToggle={true}
-              hasPtz={true}
-              envName="NEXT_PUBLIC_CCTV_HLS_URL_2"
-              cameraIp="192.168.1.106"
-            />
+          <div className="glass premium-panel flex flex-col rounded-3xl p-5 lg:max-h-[calc(100vh-10rem)]">
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-6">
+              <div className="shrink-0">
+                <CctvCard
+                  title="Solar Camera"
+                  subtitle="Tapo C545d"
+                  baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL}
+                  hasLensToggle={true}
+                  hasPtz={true}
+                  envName="NEXT_PUBLIC_CCTV_HLS_URL"
+                  cameraIp="192.168.1.111"
+                  embedded={true}
+                />
+              </div>
+              <hr className="border-white/10 shrink-0" />
+              <div className="shrink-0">
+                <CctvCard
+                  title="DLC"
+                  subtitle="Tapo C545d"
+                  baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2}
+                  hasLensToggle={true}
+                  hasPtz={true}
+                  envName="NEXT_PUBLIC_CCTV_HLS_URL_2"
+                  cameraIp="192.168.1.106"
+                  embedded={true}
+                />
+              </div>
+            </div>
           </div>
         </section>
 
