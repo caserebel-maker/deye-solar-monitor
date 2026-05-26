@@ -389,12 +389,12 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
     solarToInverter: "M 90 119 V 175 Q 90 195 110 195 H 280",
-    batteryToInverter: "M 90 281 V 225 Q 90 205 110 205 H 280",
-    inverterToBattery: "M 280 205 H 110 Q 90 205 90 225 V 281",
+    batteryToInverter: "M 90 321 V 225 Q 90 205 110 205 H 280",
+    inverterToBattery: "M 280 205 H 110 Q 90 205 90 225 V 321",
     gridToInverter: "M 610 119 V 175 Q 610 195 590 195 H 420",
     inverterToGrid: "M 420 195 H 590 Q 610 195 610 175 V 119",
-    inverterToUps: "M 350 248 V 281",
-    inverterToHome: "M 420 205 H 590 Q 610 205 610 225 V 281",
+    inverterToUps: "M 350 248 V 321",
+    inverterToHome: "M 420 205 H 590 Q 610 205 610 225 V 321",
   };
   const mobilePaths = {
     solarToInverter: "M 104 116 H 130 Q 152 116 152 158 V 224 H 148",
@@ -438,11 +438,11 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <FlowPath d={paths.inverterToUps} value={inverterToUps} color="#a78bfa" delay="-1.25s" />
           <FlowNode compact x={90} y={80} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
           <FlowNode x={350} y={200} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-          <FlowNode compact x={350} y={320} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+          <FlowNode compact x={350} y={360} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
             compact
             x={90}
-            y={320}
+            y={360}
             label="Battery"
             value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
             icon={BatteryFull}
@@ -457,7 +457,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
             icon={PlugZap}
             tone="text-blue-500"
           />
-          <FlowNode compact x={610} y={320} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
+          <FlowNode compact x={610} y={360} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
         </svg>
         <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
@@ -657,7 +657,7 @@ function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = fa
           </div>
         </div>
       </div>
-      <div className="mt-4 flex h-[180px] sm:h-[240px] lg:h-[160px] xl:h-[200px] 2xl:h-[280px] flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
+      <div className="mt-4 flex aspect-video w-full flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
         {hlsUrl ? (
           <CctvLivePlayer
             key={`${restartCount}-${lens}`}
@@ -892,7 +892,7 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
             const video = videoRef.current;
             if (video) setIsMuted(video.muted);
           }}
-          className={`h-full w-full bg-black ${compact ? "object-cover" : "object-contain"}`}
+          className="h-full w-full bg-black object-cover"
         />
         <div className="absolute bottom-3 left-3 z-10 flex flex-col items-start gap-1">
           <button
