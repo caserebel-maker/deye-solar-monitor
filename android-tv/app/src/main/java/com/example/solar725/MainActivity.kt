@@ -5,6 +5,7 @@ import android.net.http.SslError
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.SslErrorHandler
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -27,6 +28,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
         setContent {
             Solar725Theme {
@@ -68,6 +70,7 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
     AndroidView(
         factory = { context ->
             WebView(context).apply {
+                keepScreenOn = true
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
