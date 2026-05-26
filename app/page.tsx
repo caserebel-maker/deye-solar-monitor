@@ -567,6 +567,7 @@ function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = fa
   const [lens, setLens] = useState<"lens_a" | "lens_b">("lens_a");
   const [restartCount, setRestartCount] = useState(0);
   const [restarting, setRestarting] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
 
   // Prefer go2rtc's fragmented-MP4 endpoint over HLS: HLS module wedges
   // intermittently while the same producer keeps streaming bytes on
@@ -642,6 +643,17 @@ function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = fa
           )}
           {hlsUrl && (
             <button
+              aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
+              onClick={() => setIsMuted((muted) => !muted)}
+              type="button"
+              className="rounded-2xl border border-indigo-100 bg-white/55 p-2 text-indigo-500 transition"
+              title={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
+            >
+              {isMuted ? <VolumeX className="h-5 w-5 text-indigo-500" /> : <Volume2 className="h-5 w-5 text-emerald-500" />}
+            </button>
+          )}
+          {hlsUrl && (
+            <button
               aria-label="Restart stream"
               onClick={restartStream}
               disabled={restarting}
@@ -662,6 +674,8 @@ function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = fa
           <CctvLivePlayer
             key={`${restartCount}-${lens}`}
             src={hlsUrl}
+            isMuted={isMuted}
+            onMuteChange={setIsMuted}
             label={hasLensToggle ? (lens === "lens_b" ? "Lens B · PTZ" : "Lens A · Fixed") : "Live"}
           />
         ) : (
@@ -766,7 +780,19 @@ function CctvPlaceholder({ title = "Tapo camera slot ready", detail }: { title?:
   );
 }
 
-function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: { src: string; label?: string; compact?: boolean }) {
+function CctvLivePlayer({
+  src,
+  label: streamLabel = "Live",
+  compact = false,
+  isMuted,
+  onMuteChange,
+}: {
+  src: string;
+  label?: string;
+  compact?: boolean;
+  isMuted: boolean;
+  onMuteChange: (muted: boolean) => void;
+}) {
   // Play the live fragmented MP4 directly. The iframe-into-stream.html
   // approach (commit 509337a) needs go2rtc's <video-stream> web
   // component, which opens a WebSocket to /api/ws as its signal
@@ -779,8 +805,6 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
   // browsers handle without any negotiation channel.
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
-  const [isMuted, setIsMuted] = useState(true);
-  const [audioNotice, setAudioNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -812,7 +836,7 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
       video.removeAttribute("src");
       video.load();
     };
-  }, [src, isMuted]);
+  }, [src]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -821,25 +845,9 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
     video.defaultMuted = isMuted;
     if (!isMuted) {
       video.volume = 1;
+      video.play().catch(() => {});
     }
   }, [isMuted]);
-
-  const toggleAudio = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const nextMuted = !video.muted;
-    video.muted = nextMuted;
-    video.defaultMuted = nextMuted;
-    if (!nextMuted) {
-      video.volume = 1;
-    }
-    setIsMuted(nextMuted);
-    setAudioNotice(null);
-    video.play().catch(() => {
-      setAudioNotice("กด Play บนวิดีโออีกครั้งเพื่อเปิดเสียง");
-    });
-  }, []);
 
   // Auto-recovery when stream is stuck in loading/waiting state
   useEffect(() => {
@@ -890,22 +898,10 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
           controls
           onVolumeChange={() => {
             const video = videoRef.current;
-            if (video) setIsMuted(video.muted);
+            if (video) onMuteChange(video.muted);
           }}
           className="h-full w-full bg-black object-cover"
         />
-        <div className="absolute bottom-3 left-3 z-10 flex flex-col items-start gap-1">
-          <button
-            aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/82 px-3 py-2 text-xs font-semibold text-white shadow-lg backdrop-blur transition hover:bg-slate-900"
-            onClick={toggleAudio}
-            type="button"
-          >
-            {isMuted ? <VolumeX className="h-4 w-4 text-amber-300" /> : <Volume2 className="h-4 w-4 text-emerald-300" />}
-            {isMuted ? "เปิดเสียง" : "มีเสียง"}
-          </button>
-          {audioNotice && <span className="rounded-xl bg-slate-950/82 px-2 py-1 text-[10px] text-amber-200">{audioNotice}</span>}
-        </div>
         {status === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
             <Camera className="h-9 w-9 text-rose-300" />
