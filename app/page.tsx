@@ -849,14 +849,15 @@ function CctvLivePlayer({
     }
   }, [isMuted]);
 
-  // Auto-recovery when stream is stuck in loading/waiting state
+  // Auto-recovery when stream is stuck in loading or error state
   useEffect(() => {
-    if (status !== "loading") return;
+    if (status === "live") return;
 
     const timer = setTimeout(() => {
       const video = videoRef.current;
       if (video) {
-        console.log("Stream stalled/loading for 8 seconds, auto-reconnecting...");
+        console.log(`Stream stalled/error (status=${status}) for 8 seconds, auto-reconnecting...`);
+        setStatus("loading");
         try {
           const url = new URL(src);
           url.searchParams.set("_t", Date.now().toString());
