@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.solar725.theme.Solar725Theme
 
+private const val DASHBOARD_URL = "https://monitor-solar-inverter-deye-battery.vercel.app/tv"
+
 class MainActivity : ComponentActivity() {
     private var webView: WebView? = null
 
@@ -49,7 +51,7 @@ class MainActivity : ComponentActivity() {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_BACK,
                 KeyEvent.KEYCODE_MENU -> {
-                    webView?.reload()
+                    webView?.loadUrl(freshDashboardUrl())
                     return true
                 }
             }
@@ -57,6 +59,8 @@ class MainActivity : ComponentActivity() {
         return super.dispatchKeyEvent(event)
     }
 }
+
+private fun freshDashboardUrl(): String = "$DASHBOARD_URL?apk=2&t=${System.currentTimeMillis()}"
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -94,7 +98,7 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
                     cacheMode = WebSettings.LOAD_NO_CACHE
                 }
 
-                loadUrl("https://monitor-solar-inverter-deye-battery.vercel.app/tv")
+                loadUrl(freshDashboardUrl())
                 requestFocus()
                 requestFocusFromTouch()
                 onWebViewCreated(this)
