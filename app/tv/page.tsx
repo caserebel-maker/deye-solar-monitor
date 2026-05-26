@@ -1,7 +1,6 @@
 "use client";
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Hls from "hls.js";
 import {
   Activity,
   BatteryFull,
@@ -78,18 +77,20 @@ function FlowPath({ d, value, color, delay = "0s" }: { d: string; value: number;
   );
 }
 
-function renderValue(value: string) {
+function renderValue(value: string, compact: boolean) {
   const powerRegex = /^([\d.-]+)\s*(kW|W)$/i;
   const match = value.match(powerRegex);
+  const primarySize = compact ? "text-3xl" : "text-4xl";
+  const textSize = compact ? "text-2xl" : "text-3xl";
   if (match) {
     const num = match[1];
     const unit = match[2];
     return (
       <div className="flex items-baseline justify-center leading-none mt-1">
-        <strong className="data-readout text-slate-950 font-black text-5xl tracking-tighter">
+        <strong className={`data-readout text-slate-950 font-black ${primarySize} tracking-tight`}>
           {num}
         </strong>
-        <span className="text-xs font-black text-slate-500 ml-0.5">
+        <span className="text-[10px] font-black text-slate-500 ml-0.5">
           {unit}
         </span>
       </div>
@@ -102,7 +103,7 @@ function renderValue(value: string) {
     const power = parts[1];
     return (
       <div className="flex flex-col items-center justify-center leading-none mt-0.5">
-        <strong className="data-readout text-slate-950 font-black text-5xl tracking-tighter">
+        <strong className={`data-readout text-slate-950 font-black ${primarySize} tracking-tight`}>
           {soc}
         </strong>
         <span className="text-[10px] font-bold text-slate-500 mt-1 leading-none">
@@ -113,7 +114,7 @@ function renderValue(value: string) {
   }
 
   return (
-    <strong className="data-readout text-slate-950 font-black text-4xl leading-none mt-1 tracking-tight">
+    <strong className={`data-readout text-slate-950 font-black ${textSize} leading-none mt-1 tracking-tight`}>
       {value}
     </strong>
   );
@@ -137,20 +138,20 @@ function FlowNode({
   tone: string;
   compact?: boolean;
 }) {
-  const width = compact ? 176 : 210;
-  const height = compact ? 90 : 106;
+  const width = compact ? 150 : 170;
+  const height = compact ? 76 : 84;
   return (
     <foreignObject x={x - width / 2} y={y - height / 2} width={width} height={height}>
       <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-white/60 bg-white/58 px-2 text-center shadow-2xl backdrop-blur">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-1.5 mb-0.5">
           <div className="rounded-full border border-indigo-50 bg-white/80 p-1">
-            <Icon className={`h-5.5 w-5.5 ${tone}`} />
+            <Icon className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${tone}`} />
           </div>
-          <span className={`${compact ? "text-lg" : "text-xl"} font-black uppercase tracking-[0.05em] text-slate-500`}>
+          <span className={`${compact ? "text-[11px]" : "text-sm"} font-black uppercase tracking-[0.05em] text-slate-500`}>
             {label}
           </span>
         </div>
-        {renderValue(value)}
+        {renderValue(value, compact)}
       </div>
     </foreignObject>
   );
@@ -217,7 +218,7 @@ function TvCctvPtzControls({ cameraIp }: { cameraIp?: string }) {
   );
 }
 
-/* TV CCTV Player Component - Forcing SD stream, support Lens Toggle, PTZ control, and object-contain */
+/* TV CCTV Player Component - Mirrors the desktop CCTV card layout. */
 function TvCctvPlayer({
   src,
   label,
@@ -238,25 +239,26 @@ function TvCctvPlayer({
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
-  const [audioNotice, setAudioNotice] = useState<string | null>(null);
 
-  // Compute stream URL with lens options (always HLS for Hls.js compatibility)
+  // Match desktop: prefer go2rtc fragmented MP4 over HLS for browser/WebView playback.
   const streamUrl = useMemo(() => {
     if (!src) return undefined;
     try {
       const u = new URL(src);
+      u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
       const originalSrc = u.searchParams.get("src") || "tapo";
       const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
-      const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`; // Force SD stream for TV stability
+      const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
       
       u.searchParams.set("src", targetSrc);
-      u.searchParams.set("_restart", `${restartCount}`); // Cache buster
+      u.searchParams.set("_restart", `${restartCount}`);
+      u.searchParams.set("_retry", `${retryCount}`);
       u.hash = "";
       return u.toString();
     } catch {
       return src;
     }
-  }, [src, lens, restartCount]);
+  }, [src, lens, restartCount, retryCount]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -272,71 +274,24 @@ function TvCctvPlayer({
     const onWaiting = () => setStatus("loading");
     const onStalled = () => setStatus("loading");
     const onError = () => setStatus("error");
+
     video.addEventListener("playing", onPlaying);
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("stalled", onStalled);
     video.addEventListener("error", onError);
 
-    let hlsInstance: Hls | null = null;
-
-    if (Hls.isSupported()) {
-      hlsInstance = new Hls({
-        maxBufferSize: 0, // Disable buffer size limits to prevent memory pressure on budget TV
-        maxBufferLength: 4, // Minimal buffer for near-real-time streaming
-        liveBackBufferLength: 0,
-        enableWorker: true, // Run parser in Web Worker to prevent UI stuttering
-      });
-
-      hlsInstance.loadSource(streamUrl);
-      hlsInstance.attachMedia(video);
-
-      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch((err) => {
-          console.log("hls.js playback blocked:", err);
-        });
-      });
-
-      hlsInstance.on(Hls.Events.ERROR, (event, data) => {
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log("hls.js fatal network error details:", data.details, "response status:", data.response?.code, "text:", data.response?.text);
-              hlsInstance?.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log("hls.js fatal media error, retrying recoverMediaError...");
-              hlsInstance?.recoverMediaError();
-              break;
-            default:
-              console.log("hls.js unrecoverable fatal error");
-              setStatus("error");
-              break;
-          }
-        }
-      });
-    } else if (video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")) {
-      // Native HLS fallback (e.g. Safari / iOS)
-      video.src = streamUrl;
-      video.play().catch((err) => {
-        console.log("Native HLS video playback blocked:", err);
-      });
-    } else {
-      console.log("HLS is not supported on this platform.");
-      setStatus("error");
-    }
+    video.src = streamUrl;
+    video.play().catch((err) => {
+      console.log("TV fMP4 playback blocked:", err);
+    });
 
     return () => {
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("stalled", onStalled);
       video.removeEventListener("error", onError);
-
-      if (hlsInstance) {
-        hlsInstance.destroy();
-      } else {
-        video.removeAttribute("src");
-        video.load();
-      }
+      video.removeAttribute("src");
+      video.load();
     };
   }, [streamUrl, retryCount, isMuted]);
 
@@ -384,10 +339,7 @@ function TvCctvPlayer({
       video.volume = 1;
     }
     setIsMuted(nextMuted);
-    setAudioNotice(null);
-    video.play().catch(() => {
-      setAudioNotice("กด Play/OK อีกครั้ง");
-    });
+    video.play().catch(() => {});
   }, []);
 
   // Fallback interactive click handler to trigger play on click/tap
@@ -398,59 +350,70 @@ function TvCctvPlayer({
     }
   };
 
-  const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : "bg-amber-300";
-  const activeLensLabel = lens === "lens_b" ? "Lens B · Wide" : "Lens A · Fixed";
+  const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : status === "error" ? "bg-rose-400" : "bg-amber-300";
+  const statusLabel = status === "live" ? "Stream reachable" : status === "error" ? "Stream offline" : "Connecting...";
+  const activeLensLabel = lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed";
 
   return (
-    <section className={embedded ? "flex flex-col w-full" : "glass premium-panel flex min-h-0 flex-1 basis-1/2 flex-col rounded-3xl p-4"}>
-      {/* Header bar matching main dashboard */}
-      <div className="flex items-center justify-between mb-2.5">
+    <section className={embedded ? "flex w-full flex-col" : "glass premium-panel flex min-h-0 flex-1 basis-1/2 flex-col rounded-3xl p-5"}>
+      <div className="flex items-center justify-between">
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-indigo-400/90 leading-none">CCTV Security</p>
-          <h2 className="mt-1 text-sm font-black text-slate-900 leading-tight">{label}</h2>
-          <p className="mt-0.5 text-[10px] font-black text-slate-500/80 leading-tight">{subtitle}</p>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">{label}</h2>
+          <p className="mt-1 text-[11px] font-medium text-slate-500">
+            {subtitle} · {activeLensLabel}
+          </p>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {/* Lens toggles */}
-          <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[10px] font-bold">
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[11px] font-medium">
             <button
               type="button"
               onClick={() => setLens("lens_a")}
-              className={`px-2.5 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              className={`px-3 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
             >
-              Lens A
+              Lens A (Fixed)
             </button>
             <button
               type="button"
               onClick={() => setLens("lens_b")}
-              className={`px-2.5 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              className={`px-3 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
             >
-              Lens B
+              Lens B (PTZ)
             </button>
           </div>
 
-          {/* Restart button */}
+          {streamUrl && (
+            <button
+              aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
+              onClick={toggleAudio}
+              type="button"
+              className="rounded-2xl border border-indigo-100 bg-white/55 p-2 text-indigo-500 transition"
+              title={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
+            >
+              {isMuted ? <VolumeX className="h-5 w-5 text-indigo-500" /> : <Volume2 className="h-5 w-5 text-emerald-500" />}
+            </button>
+          )}
+
           <button
             aria-label="Restart stream"
             onClick={restartStream}
             disabled={restarting}
             type="button"
-            className="rounded-xl border border-indigo-100 bg-white/55 p-1.5 text-indigo-500 transition disabled:opacity-50"
-            title="Restart stream"
+            className="rounded-2xl border border-indigo-100 bg-white/55 p-2 text-indigo-500 transition disabled:cursor-wait disabled:opacity-50"
+            title="Restart stream (kicks go2rtc)"
           >
-            <RefreshCw className={`h-4 w-4 ${restarting ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-5 w-5 ${restarting ? "animate-spin" : ""}`} />
           </button>
 
-          <div className="rounded-xl border border-indigo-100 bg-white/55 p-1.5">
-            <Camera className="h-4 w-4 text-indigo-500" />
+          <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
+            <Camera className="h-5 w-5 text-indigo-500" />
           </div>
         </div>
       </div>
 
-      {/* Video area: preserve native aspect ratio and let the panel background fill leftover space. */}
       <div 
         onClick={handleContainerClick}
-        className={`relative flex cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(56,189,248,0.18),transparent_24rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.9))] shadow-lg ${embedded ? "aspect-video w-full flex-col" : "min-h-0 flex-1"}`}
+        className="relative mt-4 flex aspect-video w-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl"
       >
         {src ? (
           <video
@@ -458,12 +421,12 @@ function TvCctvPlayer({
             autoPlay
             muted={isMuted}
             playsInline
-            controls={false}
+            controls
             onVolumeChange={() => {
               const video = videoRef.current;
               if (video) setIsMuted(video.muted);
             }}
-            className="block h-full w-full bg-transparent object-contain"
+            className="block h-full w-full bg-black object-contain"
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900/40">
@@ -472,35 +435,14 @@ function TvCctvPlayer({
           </div>
         )}
 
-        {/* Floating status badge on video */}
-        <div className="absolute top-2 left-2 right-2 flex justify-between items-center bg-slate-950/80 backdrop-blur px-2.5 py-1 rounded-lg text-[10px] text-white/90 z-10 border border-white/5">
+        <div className="absolute left-0 right-0 top-0 flex items-center justify-between bg-slate-950/88 px-3 py-2 text-xs text-white/75">
           <span className="flex items-center gap-1.5 font-medium">
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
-            {status === "live" ? activeLensLabel : "Connecting..."}
+            {label} · {statusLabel}
           </span>
-          <span className="text-[9px] font-bold text-white/50 bg-white/10 px-1 py-0.5 rounded font-mono uppercase">HLS</span>
+          <span>fMP4</span>
         </div>
 
-        {/* Audio toggle: WebView/browsers need a user click before camera audio can play. */}
-        {src && (
-          <div className="absolute bottom-2 left-2 z-10 flex flex-col items-start gap-1">
-            <button
-              aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-slate-950/82 px-2.5 py-1.5 text-[10px] font-black text-white shadow-lg backdrop-blur"
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleAudio();
-              }}
-              type="button"
-            >
-              {isMuted ? <VolumeX className="h-3.5 w-3.5 text-amber-300" /> : <Volume2 className="h-3.5 w-3.5 text-emerald-300" />}
-              {isMuted ? "เปิดเสียง" : "มีเสียง"}
-            </button>
-            {audioNotice && <span className="rounded-lg bg-slate-950/82 px-2 py-1 text-[9px] font-bold text-amber-200">{audioNotice}</span>}
-          </div>
-        )}
-
-        {/* Connection error panel */}
         {status === "error" && src && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/95 z-20">
             <Camera className="h-8 w-8 text-rose-500 animate-pulse" />
@@ -510,7 +452,6 @@ function TvCctvPlayer({
         )}
       </div>
 
-      {/* PTZ controls displayed if Lens B is selected, identical to main page */}
       {lens === "lens_b" && <TvCctvPtzControls cameraIp={cameraIp} />}
     </section>
   );

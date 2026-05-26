@@ -793,13 +793,11 @@ function CctvPlaceholder({ title = "Tapo camera slot ready", detail }: { title?:
 function CctvLivePlayer({
   src,
   label: streamLabel = "Live",
-  compact = false,
   isMuted,
   onMuteChange,
 }: {
   src: string;
   label?: string;
-  compact?: boolean;
   isMuted: boolean;
   onMuteChange: (muted: boolean) => void;
 }) {
@@ -831,8 +829,6 @@ function CctvLivePlayer({
     video.addEventListener("error", onError);
 
     video.src = src;
-    video.muted = isMuted;
-    video.defaultMuted = isMuted;
     video.play().catch(() => {
       // Autoplay blocked → keep controls visible so user can tap.
     });
