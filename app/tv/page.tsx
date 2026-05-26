@@ -223,11 +223,13 @@ function TvCctvPlayer({
   label,
   subtitle,
   cameraIp,
+  embedded = false,
 }: {
   src: string;
   label: string;
   subtitle: string;
   cameraIp: string;
+  embedded?: boolean;
 }) {
   const [lens, setLens] = useState<"lens_a" | "lens_b">("lens_a");
   const [restartCount, setRestartCount] = useState(0);
@@ -400,7 +402,7 @@ function TvCctvPlayer({
   const activeLensLabel = lens === "lens_b" ? "Lens B · Wide" : "Lens A · Fixed";
 
   return (
-    <section className="glass premium-panel flex min-h-0 flex-1 basis-1/2 flex-col rounded-3xl p-4">
+    <section className={embedded ? "flex flex-col w-full" : "glass premium-panel flex min-h-0 flex-1 basis-1/2 flex-col rounded-3xl p-4"}>
       {/* Header bar matching main dashboard */}
       <div className="flex items-center justify-between mb-2.5">
         <div>
@@ -448,7 +450,7 @@ function TvCctvPlayer({
       {/* Video area: preserve native aspect ratio and let the panel background fill leftover space. */}
       <div 
         onClick={handleContainerClick}
-        className="relative flex min-h-0 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(56,189,248,0.18),transparent_24rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.9))] shadow-lg"
+        className={`relative flex cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_25%_20%,rgba(56,189,248,0.18),transparent_24rem),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(30,41,59,0.9))] shadow-lg ${embedded ? "aspect-video w-full flex-col" : "min-h-0 flex-1"}`}
       >
         {src ? (
           <video
@@ -763,20 +765,28 @@ export default function TvDashboardPage() {
         </div>
 
         {/* RIGHT COLUMN: Stacked CCTV Live Feeds (52% width) */}
-        <div className="w-[52%] h-full flex flex-col gap-4">
-          <TvCctvPlayer
-            src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
-            label="Solar Camera"
-            subtitle="Tapo C545d"
-            cameraIp="192.168.1.123"
-          />
-
-          <TvCctvPlayer
-            src={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
-            label="DLC"
-            subtitle="Tapo C545d"
-            cameraIp="192.168.1.106"
-          />
+        <div className="w-[52%] h-full glass premium-panel flex flex-col rounded-3xl p-4">
+          <div className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar flex flex-col gap-5">
+            <div className="shrink-0">
+              <TvCctvPlayer
+                src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
+                label="Solar Camera"
+                subtitle="Tapo C545d"
+                cameraIp="192.168.1.111"
+                embedded={true}
+              />
+            </div>
+            <hr className="border-white/10 shrink-0" />
+            <div className="shrink-0">
+              <TvCctvPlayer
+                src={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
+                label="DLC"
+                subtitle="Tapo C545d"
+                cameraIp="192.168.1.106"
+                embedded={true}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
