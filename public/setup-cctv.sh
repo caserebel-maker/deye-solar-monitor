@@ -4,7 +4,7 @@ set -e
 echo "=== CCTV ONVIF Port Forwarder Setup ==="
 
 echo "[1/4] Installing socat..."
-sudo apt-get update && sudo apt-get install -y socat
+sudo apt-get update && sudo apt-get install -y socat ffmpeg
 
 echo "[2/4] Stopping existing services..."
 sudo systemctl stop cctv-onvif-forward 2>/dev/null || true
