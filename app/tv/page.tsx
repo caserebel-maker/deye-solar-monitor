@@ -1,6 +1,7 @@
 "use client";
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Hls from "hls.js";
 import {
   Activity,
   BatteryFull,
@@ -240,12 +241,13 @@ function TvCctvPlayer({
   const [retryCount, setRetryCount] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
 
-  // Match desktop: prefer go2rtc fragmented MP4 over HLS for browser/WebView playback.
+  // TV WebView/Chromecast is more reliable with HLS than live fMP4. Keep
+  // the desktop-like card layout, but use the TV-safe transport here.
   const streamUrl = useMemo(() => {
     if (!src) return undefined;
     try {
       const u = new URL(src);
-      u.pathname = u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
+      u.pathname = u.pathname.replace(/stream\.mp4$/, "stream.m3u8");
       const originalSrc = u.searchParams.get("src") || "tapo";
       const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
       const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
@@ -280,18 +282,53 @@ function TvCctvPlayer({
     video.addEventListener("stalled", onStalled);
     video.addEventListener("error", onError);
 
-    video.src = streamUrl;
-    video.play().catch((err) => {
-      console.log("TV fMP4 playback blocked:", err);
-    });
+    let hlsInstance: Hls | null = null;
+
+    if (Hls.isSupported()) {
+      hlsInstance = new Hls({
+        maxBufferSize: 0,
+        maxBufferLength: 4,
+        liveBackBufferLength: 0,
+        enableWorker: true,
+      });
+
+      hlsInstance.loadSource(streamUrl);
+      hlsInstance.attachMedia(video);
+      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch((err) => {
+          console.log("TV HLS playback blocked:", err);
+        });
+      });
+      hlsInstance.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hlsInstance?.startLoad();
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hlsInstance?.recoverMediaError();
+        } else {
+          setStatus("error");
+        }
+      });
+    } else if (video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")) {
+      video.src = streamUrl;
+      video.play().catch((err) => {
+        console.log("TV native HLS playback blocked:", err);
+      });
+    } else {
+      setStatus("error");
+    }
 
     return () => {
       video.removeEventListener("playing", onPlaying);
       video.removeEventListener("waiting", onWaiting);
       video.removeEventListener("stalled", onStalled);
       video.removeEventListener("error", onError);
-      video.removeAttribute("src");
-      video.load();
+      if (hlsInstance) {
+        hlsInstance.destroy();
+      } else {
+        video.removeAttribute("src");
+        video.load();
+      }
     };
   }, [streamUrl, retryCount, isMuted]);
 
@@ -356,29 +393,30 @@ function TvCctvPlayer({
 
   return (
     <section className={embedded ? "flex w-full flex-col" : "glass premium-panel flex min-h-0 flex-1 basis-1/2 flex-col rounded-3xl p-5"}>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Security Feed</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">{label}</h2>
-          <p className="mt-1 text-[11px] font-medium text-slate-500">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] font-medium uppercase tracking-[0.16em] eyebrow-text">
+            Security Feed · {label}
+          </p>
+          <p className="mt-1 truncate text-sm font-semibold text-slate-950">
             {subtitle} · {activeLensLabel}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[11px] font-medium">
             <button
               type="button"
               onClick={() => setLens("lens_a")}
-              className={`px-3 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              className={`px-2.5 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
             >
-              Lens A (Fixed)
+              Lens A
             </button>
             <button
               type="button"
               onClick={() => setLens("lens_b")}
-              className={`px-3 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              className={`px-2.5 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
             >
-              Lens B (PTZ)
+              Lens B
             </button>
           </div>
 
@@ -387,10 +425,10 @@ function TvCctvPlayer({
               aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
               onClick={toggleAudio}
               type="button"
-              className="rounded-2xl border border-indigo-100 bg-white/55 p-2 text-indigo-500 transition"
+              className="rounded-xl border border-indigo-100 bg-white/55 p-1.5 text-indigo-500 transition"
               title={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
             >
-              {isMuted ? <VolumeX className="h-5 w-5 text-indigo-500" /> : <Volume2 className="h-5 w-5 text-emerald-500" />}
+              {isMuted ? <VolumeX className="h-4 w-4 text-indigo-500" /> : <Volume2 className="h-4 w-4 text-emerald-500" />}
             </button>
           )}
 
@@ -399,14 +437,14 @@ function TvCctvPlayer({
             onClick={restartStream}
             disabled={restarting}
             type="button"
-            className="rounded-2xl border border-indigo-100 bg-white/55 p-2 text-indigo-500 transition disabled:cursor-wait disabled:opacity-50"
+            className="rounded-xl border border-indigo-100 bg-white/55 p-1.5 text-indigo-500 transition disabled:cursor-wait disabled:opacity-50"
             title="Restart stream (kicks go2rtc)"
           >
-            <RefreshCw className={`h-5 w-5 ${restarting ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${restarting ? "animate-spin" : ""}`} />
           </button>
 
-          <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
-            <Camera className="h-5 w-5 text-indigo-500" />
+          <div className="rounded-xl border border-indigo-100 bg-white/55 p-1.5">
+            <Camera className="h-4 w-4 text-indigo-500" />
           </div>
         </div>
       </div>
@@ -440,7 +478,7 @@ function TvCctvPlayer({
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {label} · {statusLabel}
           </span>
-          <span>fMP4</span>
+          <span>HLS</span>
         </div>
 
         {status === "error" && src && (
