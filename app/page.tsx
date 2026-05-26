@@ -1299,8 +1299,10 @@ export default function DashboardPage() {
         )}
 
         <section className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
-          <EnergyFlow overview={data.overview} weather={weather} />
-          <div className="flex flex-col gap-4">
+          <div className="lg:sticky lg:top-6 lg:self-start">
+            <EnergyFlow overview={data.overview} weather={weather} />
+          </div>
+          <div className="flex flex-col gap-4 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto lg:pr-2 custom-scrollbar">
             <CctvCard
               title="Solar Camera"
               subtitle="Tapo C545d"
@@ -1308,7 +1310,7 @@ export default function DashboardPage() {
               hasLensToggle={true}
               hasPtz={true}
               envName="NEXT_PUBLIC_CCTV_HLS_URL"
-              cameraIp="192.168.1.123"
+              cameraIp="192.168.1.111"
             />
             <CctvCard
               title="DLC"
