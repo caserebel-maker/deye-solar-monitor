@@ -416,8 +416,8 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <Activity className="h-5 w-5 text-indigo-500" />
         </div>
       </div>
-      <div className="energy-flow-canvas mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid xl:mt-4 xl:h-auto xl:aspect-[1.75/1] xl:min-h-[420px]">
-        <svg viewBox="0 0 700 400" className="hidden h-full w-full xl:block" preserveAspectRatio="xMidYMid meet">
+      <div className="energy-flow-canvas mt-3 h-[500px] w-full overflow-hidden rounded-3xl border border-white/60 bg-white/34 soft-grid lg:mt-4 lg:h-auto lg:aspect-[1.75/1] lg:min-h-[320px] xl:min-h-[420px]">
+        <svg viewBox="0 0 700 400" className="hidden h-full w-full lg:block" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="flowGradient" x1="0" x2="1">
               <stop offset="0%" stopColor="#22d3ee" />
@@ -459,7 +459,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           />
           <FlowNode compact x={610} y={320} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
         </svg>
-        <div className="relative h-full w-full overflow-hidden xl:hidden">
+        <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
             {solarToInverter <= 0.005 && <BaseFlowPath d={mobilePaths.solarToInverter} />}
             {batteryToInverter <= 0.005 && inverterToBattery <= 0.005 && <BaseFlowPath d={mobilePaths.batteryToInverter} />}
@@ -495,7 +495,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <MobileFlowNode className="left-[78%] top-[84%]" label="Load" value="0 W" icon={Home} tone="text-white" />
         </div>
       </div>
-      <div className="mt-3 hidden grid-cols-2 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur xl:grid 2xl:grid-cols-4">
+      <div className="mt-3 hidden grid-cols-2 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur lg:grid 2xl:grid-cols-4">
         <div className="rounded-2xl bg-white/35 px-4 py-3">
           <p className="text-[11px] uppercase tracking-[0.14em] eyebrow-text">Monthly Production</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">
@@ -521,7 +521,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           </p>
         </div>
       </div>
-      <div className="mt-4 grid gap-3 rounded-3xl border border-white/55 bg-white/45 p-4 backdrop-blur xl:hidden">
+      <div className="mt-4 grid gap-3 rounded-3xl border border-white/55 bg-white/45 p-4 backdrop-blur lg:hidden">
         <div className="grid grid-cols-2 gap-3">
           <div>
             <p className="text-xs text-slate-500">Production</p>
@@ -657,7 +657,7 @@ function CctvCard({ title, subtitle, baseUrl, hasLensToggle = false, hasPtz = fa
           </div>
         </div>
       </div>
-      <div className="mt-4 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl min-h-[220px]">
+      <div className="mt-4 flex h-[180px] sm:h-[240px] lg:h-[160px] xl:h-[200px] 2xl:h-[280px] flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
         {hlsUrl ? (
           <CctvLivePlayer
             key={`${restartCount}-${lens}`}
@@ -873,7 +873,7 @@ function CctvLivePlayer({ src, label: streamLabel = "Live", compact = false }: {
   const label = status === "live" ? streamLabel : status === "error" ? "Stream offline" : "Connecting…";
 
   return (
-    <div className="flex min-h-[280px] flex-1 flex-col overflow-hidden bg-slate-950">
+    <div className="flex h-full w-full flex-col overflow-hidden bg-slate-950">
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-xs text-white/62">
         <span className="inline-flex items-center gap-2">
           <span className={`h-2 w-2 rounded-full ${dot}`} />
@@ -1301,29 +1301,28 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section className="grid gap-4 min-[1367px]:grid-cols-[0.92fr_1.08fr]">
+        <section className="grid gap-4 lg:grid-cols-[0.92fr_1.08fr]">
           <EnergyFlow overview={data.overview} weather={weather} />
-          <CctvCard
-            title="Solar Camera"
-            subtitle="Tapo C545d"
-            baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL}
-            hasLensToggle={true}
-            hasPtz={true}
-            envName="NEXT_PUBLIC_CCTV_HLS_URL"
-            cameraIp="192.168.1.123"
-          />
-        </section>
-
-        <section className="mt-4">
-          <CctvCard
-            title="DLC"
-            subtitle="Tapo C545d"
-            baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2}
-            hasLensToggle={true}
-            hasPtz={true}
-            envName="NEXT_PUBLIC_CCTV_HLS_URL_2"
-            cameraIp="192.168.1.106"
-          />
+          <div className="flex flex-col gap-4">
+            <CctvCard
+              title="Solar Camera"
+              subtitle="Tapo C545d"
+              baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL}
+              hasLensToggle={true}
+              hasPtz={true}
+              envName="NEXT_PUBLIC_CCTV_HLS_URL"
+              cameraIp="192.168.1.123"
+            />
+            <CctvCard
+              title="DLC"
+              subtitle="Tapo C545d"
+              baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2}
+              hasLensToggle={true}
+              hasPtz={true}
+              envName="NEXT_PUBLIC_CCTV_HLS_URL_2"
+              cameraIp="192.168.1.106"
+            />
+          </div>
         </section>
 
         <section className="mt-4 grid gap-4">
