@@ -47,13 +47,23 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        // Intercept BACK and MENU keys to reload the page.
-        // We leave DPAD_CENTER and ENTER alone so the user can click lens toggle buttons and video play controls.
         if (event.action == KeyEvent.ACTION_DOWN) {
+            val scrollStep = ((webView?.height ?: 0) * 0.7).toInt().coerceAtLeast(320)
             when (event.keyCode) {
                 KeyEvent.KEYCODE_BACK,
                 KeyEvent.KEYCODE_MENU -> {
                     webView?.loadUrl(freshDashboardUrl())
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_PAGE_DOWN,
+                KeyEvent.KEYCODE_SPACE -> {
+                    webView?.scrollBy(0, scrollStep)
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_PAGE_UP -> {
+                    webView?.scrollBy(0, -scrollStep)
                     return true
                 }
             }
