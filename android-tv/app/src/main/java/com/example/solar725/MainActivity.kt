@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.net.http.SslError
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.SslErrorHandler
@@ -48,7 +49,6 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
-            val scrollStep = ((webView?.height ?: 0) * 0.7).toInt().coerceAtLeast(320)
             when (event.keyCode) {
                 KeyEvent.KEYCODE_BACK,
                 KeyEvent.KEYCODE_MENU -> {
@@ -58,17 +58,28 @@ class MainActivity : ComponentActivity() {
                 KeyEvent.KEYCODE_DPAD_DOWN,
                 KeyEvent.KEYCODE_PAGE_DOWN,
                 KeyEvent.KEYCODE_SPACE -> {
-                    webView?.scrollBy(0, scrollStep)
+                    scrollDashboard(1)
                     return true
                 }
                 KeyEvent.KEYCODE_DPAD_UP,
                 KeyEvent.KEYCODE_PAGE_UP -> {
-                    webView?.scrollBy(0, -scrollStep)
+                    scrollDashboard(-1)
                     return true
                 }
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    private fun scrollDashboard(direction: Int) {
+        val script = """
+            (() => {
+              const target = document.querySelector('[data-tv-scroll]') || document.scrollingElement || document.documentElement;
+              const step = Math.max(Math.floor(window.innerHeight * 0.58), 320);
+              target.scrollBy({ top: ${direction} * step, behavior: 'smooth' });
+            })();
+        """.trimIndent()
+        webView?.evaluateJavascript(script, null)
     }
 }
 
@@ -81,10 +92,36 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
         factory = { context ->
             WebView(context).apply {
                 keepScreenOn = true
+                isFocusable = true
+                isFocusableInTouchMode = true
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
                 )
+
+                setOnKeyListener { _: View, keyCode: Int, event: KeyEvent ->
+                    if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                    when (keyCode) {
+                        KeyEvent.KEYCODE_DPAD_DOWN,
+                        KeyEvent.KEYCODE_PAGE_DOWN,
+                        KeyEvent.KEYCODE_SPACE -> {
+                            evaluateJavascript(
+                                "(() => { const t = document.querySelector('[data-tv-scroll]') || document.scrollingElement || document.documentElement; const s = Math.max(Math.floor(window.innerHeight * 0.58), 320); t.scrollBy({ top: s, behavior: 'smooth' }); })();",
+                                null
+                            )
+                            true
+                        }
+                        KeyEvent.KEYCODE_DPAD_UP,
+                        KeyEvent.KEYCODE_PAGE_UP -> {
+                            evaluateJavascript(
+                                "(() => { const t = document.querySelector('[data-tv-scroll]') || document.scrollingElement || document.documentElement; const s = Math.max(Math.floor(window.innerHeight * 0.58), 320); t.scrollBy({ top: -s, behavior: 'smooth' }); })();",
+                                null
+                            )
+                            true
+                        }
+                        else -> false
+                    }
+                }
                 
                 webViewClient = object : WebViewClient() {
                     @Deprecated("Deprecated in Java")

@@ -240,17 +240,14 @@ function TvCctvPlayer({
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
-  const [transport, setTransport] = useState<"hls" | "mp4">("hls");
 
-  // TV WebView is picky: HLS is usually safest on Chromecast, but some
-  // go2rtc stalls recover faster by briefly falling back to fMP4.
+  // TV WebView/Chromecast is more reliable with HLS than live fMP4. Keep
+  // the desktop-like card layout, but use the TV-safe transport here.
   const streamUrl = useMemo(() => {
     if (!src) return undefined;
     try {
       const u = new URL(src);
-      u.pathname = transport === "hls"
-        ? u.pathname.replace(/stream\.mp4$/, "stream.m3u8")
-        : u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
+      u.pathname = u.pathname.replace(/stream\.mp4$/, "stream.m3u8");
       const originalSrc = u.searchParams.get("src") || "tapo";
       const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
       const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
@@ -263,7 +260,7 @@ function TvCctvPlayer({
     } catch {
       return src;
     }
-  }, [src, lens, restartCount, retryCount, transport]);
+  }, [src, lens, restartCount, retryCount]);
 
   const restartStream = useCallback(async () => {
     if (!src || restarting) return;
@@ -281,7 +278,6 @@ function TvCctvPlayer({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
-    const isHlsStream = streamUrl.includes("stream.m3u8");
 
     // Start muted so TV/WebView autoplay is reliable. The on-screen audio
     // button flips this after a real remote-control click.
@@ -301,12 +297,12 @@ function TvCctvPlayer({
 
     let hlsInstance: Hls | null = null;
 
-    if (isHlsStream && Hls.isSupported()) {
+    if (Hls.isSupported()) {
       hlsInstance = new Hls({
         maxBufferSize: 0,
-        maxBufferLength: 4,
+        maxBufferLength: 8,
         liveSyncDurationCount: 2,
-        liveMaxLatencyDurationCount: 5,
+        liveMaxLatencyDurationCount: 6,
         liveBackBufferLength: 0,
         enableWorker: true,
       });
@@ -326,21 +322,15 @@ function TvCctvPlayer({
           hlsInstance?.recoverMediaError();
         } else {
           setStatus("error");
-          setTransport("mp4");
         }
       });
-    } else if (isHlsStream && (video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL"))) {
+    } else if (video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")) {
       video.src = streamUrl;
       video.play().catch((err) => {
         console.log("TV native HLS playback blocked:", err);
       });
-    } else if (!isHlsStream) {
-      video.src = streamUrl;
-      video.play().catch((err) => {
-        console.log("TV fMP4 playback blocked:", err);
-      });
     } else {
-      window.setTimeout(() => setTransport("mp4"), 0);
+      setStatus("error");
     }
 
     return () => {
@@ -367,18 +357,18 @@ function TvCctvPlayer({
     }
   }, [isMuted]);
 
-  // Reconnect watchdog: if stuck in loading for 10 seconds, reload the stream source.
+  // Reconnect watchdog: if stuck in loading for 20 seconds, reload the HLS source.
   useEffect(() => {
     if (status !== "loading") return;
     const timer = setTimeout(() => {
-      console.log(`[TV-Kiosk] Stream stalled for 10s: ${label}. Reconnecting...`);
+      console.log(`[TV-Kiosk] Stream loading for 20s: ${label}. Reconnecting...`);
       setRetryCount((c) => c + 1);
-    }, 10000);
+    }, 20000);
     return () => clearTimeout(timer);
   }, [status, label]);
 
   // Frame watchdog: TV WebView can report "playing" while the frame is black
-  // or currentTime is frozen. Watch time movement, then recover aggressively.
+  // or currentTime is frozen. Be conservative so we do not flap a good stream.
   useEffect(() => {
     if (!streamUrl) return;
     const video = videoRef.current;
@@ -395,29 +385,25 @@ function TvCctvPlayer({
       if (hasEnoughData && !video.paused && timeMoved) {
         stuckTicks = 0;
         lastTime = currentTime;
+        if (status !== "live") {
+          setStatus("live");
+        }
         return;
       }
 
       stuckTicks += 1;
       lastTime = currentTime;
 
-      if (stuckTicks === 2) {
-        setRetryCount((c) => c + 1);
-        video.play().catch(() => {});
-      }
-
-      if (stuckTicks === 4) {
-        setTransport((current) => (current === "hls" ? "mp4" : "hls"));
-      }
-
       if (stuckTicks >= 6) {
         stuckTicks = 0;
-        restartStream();
+        console.log(`[TV-Kiosk] Stream time frozen for 30s: ${label}. Reloading HLS...`);
+        setRetryCount((c) => c + 1);
+        video.play().catch(() => {});
       }
     }, 5000);
 
     return () => window.clearInterval(timer);
-  }, [streamUrl, restartStream]);
+  }, [streamUrl, status, label]);
 
   const toggleAudio = useCallback(() => {
     const video = videoRef.current;
@@ -532,7 +518,7 @@ function TvCctvPlayer({
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {label} · {statusLabel}
           </span>
-          <span>{transport === "hls" ? "HLS" : "fMP4"}</span>
+          <span>HLS</span>
         </div>
 
         {status === "error" && src && (
@@ -622,6 +608,32 @@ export default function TvDashboardPage() {
       window.location.reload();
     }, 2 * 60 * 60 * 1000);
     return () => clearTimeout(watchdog);
+  }, []);
+
+  // Android TV remotes sometimes send key events to the page instead of the
+  // native wrapper. Scroll the CCTV column directly because the page itself is
+  // fixed to the viewport.
+  useEffect(() => {
+    const scrollCctvColumn = (direction: 1 | -1) => {
+      const target = document.querySelector<HTMLElement>("[data-tv-scroll]");
+      const step = Math.max(Math.floor(window.innerHeight * 0.58), 320);
+      if (target) {
+        target.scrollBy({ top: direction * step, behavior: "smooth" });
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowDown" || event.key === "PageDown" || event.key === " ") {
+        event.preventDefault();
+        scrollCctvColumn(1);
+      } else if (event.key === "ArrowUp" || event.key === "PageUp") {
+        event.preventDefault();
+        scrollCctvColumn(-1);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   const metrics = data?.overview.metrics;
@@ -799,7 +811,7 @@ export default function TvDashboardPage() {
 
         {/* RIGHT COLUMN: Stacked CCTV Live Feeds (52% width) */}
         <div className="w-[52%] h-full glass premium-panel flex flex-col rounded-3xl p-4">
-          <div className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar flex flex-col gap-5">
+          <div data-tv-scroll className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar flex flex-col gap-5">
             <div className="shrink-0">
               <TvCctvPlayer
                 src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
