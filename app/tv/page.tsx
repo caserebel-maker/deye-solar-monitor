@@ -240,14 +240,17 @@ function TvCctvPlayer({
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
+  const [transport, setTransport] = useState<"hls" | "mp4">("hls");
 
-  // TV WebView/Chromecast is more reliable with HLS than live fMP4. Keep
-  // the desktop-like card layout, but use the TV-safe transport here.
+  // TV WebView is picky: HLS is usually safest on Chromecast, but some
+  // go2rtc stalls recover faster by briefly falling back to fMP4.
   const streamUrl = useMemo(() => {
     if (!src) return undefined;
     try {
       const u = new URL(src);
-      u.pathname = u.pathname.replace(/stream\.mp4$/, "stream.m3u8");
+      u.pathname = transport === "hls"
+        ? u.pathname.replace(/stream\.mp4$/, "stream.m3u8")
+        : u.pathname.replace(/stream\.m3u8$/, "stream.mp4");
       const originalSrc = u.searchParams.get("src") || "tapo";
       const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
       const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
@@ -260,11 +263,25 @@ function TvCctvPlayer({
     } catch {
       return src;
     }
-  }, [src, lens, restartCount, retryCount]);
+  }, [src, lens, restartCount, retryCount, transport]);
+
+  const restartStream = useCallback(async () => {
+    if (!src || restarting) return;
+    setRestarting(true);
+    try {
+      const origin = new URL(src).origin;
+      await fetch(`${origin}/api/restart`, { method: "POST", mode: "no-cors" }).catch(() => {});
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      setRestartCount((n) => n + 1);
+    } finally {
+      setRestarting(false);
+    }
+  }, [src, restarting]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
+    const isHlsStream = streamUrl.includes("stream.m3u8");
 
     // Start muted so TV/WebView autoplay is reliable. The on-screen audio
     // button flips this after a real remote-control click.
@@ -284,10 +301,12 @@ function TvCctvPlayer({
 
     let hlsInstance: Hls | null = null;
 
-    if (Hls.isSupported()) {
+    if (isHlsStream && Hls.isSupported()) {
       hlsInstance = new Hls({
         maxBufferSize: 0,
         maxBufferLength: 4,
+        liveSyncDurationCount: 2,
+        liveMaxLatencyDurationCount: 5,
         liveBackBufferLength: 0,
         enableWorker: true,
       });
@@ -307,15 +326,21 @@ function TvCctvPlayer({
           hlsInstance?.recoverMediaError();
         } else {
           setStatus("error");
+          setTransport("mp4");
         }
       });
-    } else if (video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL")) {
+    } else if (isHlsStream && (video.canPlayType("application/vnd.apple.mpegurl") || video.canPlayType("application/x-mpegURL"))) {
       video.src = streamUrl;
       video.play().catch((err) => {
         console.log("TV native HLS playback blocked:", err);
       });
+    } else if (!isHlsStream) {
+      video.src = streamUrl;
+      video.play().catch((err) => {
+        console.log("TV fMP4 playback blocked:", err);
+      });
     } else {
-      setStatus("error");
+      window.setTimeout(() => setTransport("mp4"), 0);
     }
 
     return () => {
@@ -342,7 +367,7 @@ function TvCctvPlayer({
     }
   }, [isMuted]);
 
-  // Reconnect watchdog: if stuck in loading for 10 seconds, reload the stream source
+  // Reconnect watchdog: if stuck in loading for 10 seconds, reload the stream source.
   useEffect(() => {
     if (status !== "loading") return;
     const timer = setTimeout(() => {
@@ -352,18 +377,47 @@ function TvCctvPlayer({
     return () => clearTimeout(timer);
   }, [status, label]);
 
-  const restartStream = useCallback(async () => {
-    if (!src || restarting) return;
-    setRestarting(true);
-    try {
-      const origin = new URL(src).origin;
-      await fetch(`${origin}/api/restart`, { method: "POST", mode: "no-cors" }).catch(() => {});
-      await new Promise((resolve) => setTimeout(resolve, 6000));
-      setRestartCount((n) => n + 1);
-    } finally {
-      setRestarting(false);
-    }
-  }, [src, restarting]);
+  // Frame watchdog: TV WebView can report "playing" while the frame is black
+  // or currentTime is frozen. Watch time movement, then recover aggressively.
+  useEffect(() => {
+    if (!streamUrl) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    let lastTime = Number.NaN;
+    let stuckTicks = 0;
+
+    const timer = window.setInterval(() => {
+      const currentTime = video.currentTime;
+      const hasEnoughData = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+      const timeMoved = Number.isFinite(lastTime) && Math.abs(currentTime - lastTime) > 0.25;
+
+      if (hasEnoughData && !video.paused && timeMoved) {
+        stuckTicks = 0;
+        lastTime = currentTime;
+        return;
+      }
+
+      stuckTicks += 1;
+      lastTime = currentTime;
+
+      if (stuckTicks === 2) {
+        setRetryCount((c) => c + 1);
+        video.play().catch(() => {});
+      }
+
+      if (stuckTicks === 4) {
+        setTransport((current) => (current === "hls" ? "mp4" : "hls"));
+      }
+
+      if (stuckTicks >= 6) {
+        stuckTicks = 0;
+        restartStream();
+      }
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [streamUrl, restartStream]);
 
   const toggleAudio = useCallback(() => {
     const video = videoRef.current;
@@ -478,7 +532,7 @@ function TvCctvPlayer({
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {label} · {statusLabel}
           </span>
-          <span>HLS</span>
+          <span>{transport === "hls" ? "HLS" : "fMP4"}</span>
         </div>
 
         {status === "error" && src && (
