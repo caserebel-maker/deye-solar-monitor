@@ -62,7 +62,7 @@ function BaseFlowPath({ d }: { d: string }) {
   );
 }
 
-function FlowPath({ d, value, color, delay = "0s" }: { d: string; value: number; color: string; delay?: string }) {
+function FlowPath({ d, value, color, delay = "0s", lite = false }: { d: string; value: number; color: string; delay?: string; lite?: boolean }) {
   if (value <= 0.005) return null;
   return (
     <path
@@ -73,7 +73,7 @@ function FlowPath({ d, value, color, delay = "0s" }: { d: string; value: number;
       strokeLinejoin="round"
       fill="none"
       className="flow-line"
-      style={{ animationDelay: delay, filter: `drop-shadow(0 0 6px ${color})` }}
+      style={lite ? { filter: "none" } : { animationDelay: delay, filter: `drop-shadow(0 0 6px ${color})` }}
     />
   );
 }
@@ -226,12 +226,14 @@ function TvCctvPlayer({
   subtitle,
   cameraIp,
   embedded = false,
+  liteMode = false,
 }: {
   src: string;
   label: string;
   subtitle: string;
   cameraIp: string;
   embedded?: boolean;
+  liteMode?: boolean;
 }) {
   const [lens, setLens] = useState<"lens_a" | "lens_b">("lens_a");
   const [restartCount, setRestartCount] = useState(0);
@@ -241,13 +243,15 @@ function TvCctvPlayer({
   const [retryCount, setRetryCount] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
 
-  // TV WebView/Chromecast is more reliable with HLS than live fMP4. Keep
-  // the desktop-like card layout, but use the TV-safe transport here.
+  // Use HLS on Chromecast-class devices. Haier/low-power TV WebViews get
+  // fMP4 directly to avoid hls.js CPU/GPU overhead.
   const streamUrl = useMemo(() => {
     if (!src) return undefined;
     try {
       const u = new URL(src);
-      u.pathname = u.pathname.replace(/stream\.mp4$/, "stream.m3u8");
+      u.pathname = liteMode
+        ? u.pathname.replace(/stream\.m3u8$/, "stream.mp4")
+        : u.pathname.replace(/stream\.mp4$/, "stream.m3u8");
       const originalSrc = u.searchParams.get("src") || "tapo";
       const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
       const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
@@ -260,7 +264,7 @@ function TvCctvPlayer({
     } catch {
       return src;
     }
-  }, [src, lens, restartCount, retryCount]);
+  }, [src, lens, restartCount, retryCount, liteMode]);
 
   const restartStream = useCallback(async () => {
     if (!src || restarting) return;
@@ -297,7 +301,12 @@ function TvCctvPlayer({
 
     let hlsInstance: Hls | null = null;
 
-    if (Hls.isSupported()) {
+    if (liteMode) {
+      video.src = streamUrl;
+      video.play().catch((err) => {
+        console.log("TV lite fMP4 playback blocked:", err);
+      });
+    } else if (Hls.isSupported()) {
       hlsInstance = new Hls({
         maxBufferSize: 0,
         maxBufferLength: 8,
@@ -345,7 +354,7 @@ function TvCctvPlayer({
         video.load();
       }
     };
-  }, [streamUrl, retryCount, isMuted]);
+  }, [streamUrl, retryCount, isMuted, liteMode]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -518,7 +527,7 @@ function TvCctvPlayer({
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {label} · {statusLabel}
           </span>
-          <span>HLS</span>
+          <span>{liteMode ? "fMP4" : "HLS"}</span>
         </div>
 
         {status === "error" && src && (
@@ -542,6 +551,13 @@ export default function TvDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [time, setTime] = useState<string>("");
   const [dateStr, setDateStr] = useState<string>("");
+  const [liteMode, setLiteMode] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ua = window.navigator.userAgent.toLowerCase();
+    setLiteMode(params.get("lite") === "1" || ua.includes("haier") || ua.includes("matrixtv"));
+  }, []);
 
   // Live Digital Clock (updated every second)
   useEffect(() => {
@@ -675,7 +691,7 @@ export default function TvDashboardPage() {
   const gridValue = gridToInverter || inverterToGrid;
 
   return (
-    <div className="dark-dashboard w-screen h-screen overflow-hidden bg-[#040910] text-[#e2ecf8] font-sans p-4 flex flex-col gap-4 select-none">
+    <div className={`${liteMode ? "tv-lite" : ""} dark-dashboard w-screen h-screen overflow-hidden bg-[#040910] text-[#e2ecf8] font-sans p-4 flex flex-col gap-4 select-none`}>
       
       {/* HEADER SECTION - Matches main page header layout exactly */}
       <header className="flex justify-between items-center bg-white/38 border border-white/60 px-4 py-2.5 rounded-3xl shadow-xl backdrop-blur-2xl">
@@ -739,12 +755,12 @@ export default function TvDashboardPage() {
                 <BaseFlowPath d={paths.inverterToHome} />
                 {inverterToUps <= 0.005 && <BaseFlowPath d={paths.inverterToUps} />}
                 
-                <FlowPath d={paths.solarToInverter} value={solarToInverter} color="#fbbf24" delay="0s" />
-                <FlowPath d={paths.batteryToInverter} value={batteryToInverter} color="#fbbf24" delay="-0.45s" />
-                <FlowPath d={paths.inverterToBattery} value={inverterToBattery} color="#10b981" delay="-0.45s" />
-                <FlowPath d={paths.gridToInverter} value={gridToInverter} color="#38bdf8" delay="-0.9s" />
-                <FlowPath d={paths.inverterToGrid} value={inverterToGrid} color="#38bdf8" delay="-0.9s" />
-                <FlowPath d={paths.inverterToUps} value={inverterToUps} color="#a78bfa" delay="-1.25s" />
+                <FlowPath d={paths.solarToInverter} value={solarToInverter} color="#fbbf24" delay="0s" lite={liteMode} />
+                <FlowPath d={paths.batteryToInverter} value={batteryToInverter} color="#fbbf24" delay="-0.45s" lite={liteMode} />
+                <FlowPath d={paths.inverterToBattery} value={inverterToBattery} color="#10b981" delay="-0.45s" lite={liteMode} />
+                <FlowPath d={paths.gridToInverter} value={gridToInverter} color="#38bdf8" delay="-0.9s" lite={liteMode} />
+                <FlowPath d={paths.inverterToGrid} value={inverterToGrid} color="#38bdf8" delay="-0.9s" lite={liteMode} />
+                <FlowPath d={paths.inverterToUps} value={inverterToUps} color="#a78bfa" delay="-1.25s" lite={liteMode} />
                 
                 {/* Repositioned: Solar/Grid moved up (y=55), Inverter moved up (y=140), Battery/Load/Home moved down (y=345) */}
                 <FlowNode compact x={90} y={55} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
@@ -819,6 +835,7 @@ export default function TvDashboardPage() {
                 subtitle="Tapo C545d"
                 cameraIp="192.168.1.111"
                 embedded={true}
+                liteMode={liteMode}
               />
             </div>
             <hr className="border-white/10 shrink-0" />
@@ -829,6 +846,7 @@ export default function TvDashboardPage() {
                 subtitle="Tapo C545d"
                 cameraIp="192.168.1.106"
                 embedded={true}
+                liteMode={liteMode}
               />
             </div>
           </div>

@@ -2,6 +2,7 @@ package com.example.solar725
 
 import android.annotation.SuppressLint
 import android.net.http.SslError
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -83,7 +84,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun freshDashboardUrl(): String = "$DASHBOARD_URL?apk=2&t=${System.currentTimeMillis()}"
+private fun isLiteDevice(): Boolean {
+    val manufacturer = Build.MANUFACTURER.lowercase()
+    val model = Build.MODEL.lowercase()
+    return manufacturer.contains("haier") || model.contains("haier") || model.contains("matrixtv")
+}
+
+private fun freshDashboardUrl(): String {
+    val lite = if (isLiteDevice()) "&lite=1" else ""
+    return "$DASHBOARD_URL?apk=2$lite&t=${System.currentTimeMillis()}"
+}
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
