@@ -508,7 +508,8 @@ function TvCctvPlayer({
             autoPlay
             muted={isMuted}
             playsInline
-            controls
+            controls={!liteMode}
+            preload={liteMode ? "metadata" : "auto"}
             onVolumeChange={() => {
               const video = videoRef.current;
               if (video) setIsMuted(video.muted);
@@ -552,6 +553,7 @@ export default function TvDashboardPage() {
   const [time, setTime] = useState<string>("");
   const [dateStr, setDateStr] = useState<string>("");
   const [liteMode, setLiteMode] = useState(false);
+  const [activeTvCamera, setActiveTvCamera] = useState<"solar" | "dlc">("solar");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -825,31 +827,69 @@ export default function TvDashboardPage() {
           </section>
         </div>
 
-        {/* RIGHT COLUMN: Stacked CCTV Live Feeds (52% width) */}
+        {/* RIGHT COLUMN: CCTV Live Feeds (52% width) */}
         <div className="w-[52%] h-full glass premium-panel flex flex-col rounded-3xl p-4">
-          <div data-tv-scroll className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar flex flex-col gap-5">
-            <div className="shrink-0">
-              <TvCctvPlayer
-                src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
-                label="Solar Camera"
-                subtitle="Tapo C545d"
-                cameraIp="192.168.1.111"
-                embedded={true}
-                liteMode={liteMode}
-              />
+          {liteMode ? (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.16em] eyebrow-text">Haier Stable Mode</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-950/70">Showing one camera stream at a time to keep TV decoder stable</p>
+                </div>
+                <div className="flex overflow-hidden rounded-2xl border border-indigo-100 bg-white/55 p-1 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTvCamera("solar")}
+                    className={`rounded-xl px-4 py-2 transition ${activeTvCamera === "solar" ? "bg-indigo-500 text-white" : "text-slate-600"}`}
+                  >
+                    Solar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTvCamera("dlc")}
+                    className={`rounded-xl px-4 py-2 transition ${activeTvCamera === "dlc" ? "bg-indigo-500 text-white" : "text-slate-600"}`}
+                  >
+                    DLC
+                  </button>
+                </div>
+              </div>
+              <div className="min-h-0 flex-1">
+                <TvCctvPlayer
+                  key={activeTvCamera}
+                  src={activeTvCamera === "solar" ? process.env.NEXT_PUBLIC_CCTV_HLS_URL || "" : process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
+                  label={activeTvCamera === "solar" ? "Solar Camera" : "DLC"}
+                  subtitle="Tapo C545d"
+                  cameraIp={activeTvCamera === "solar" ? "192.168.1.111" : "192.168.1.106"}
+                  embedded={true}
+                  liteMode={true}
+                />
+              </div>
             </div>
-            <hr className="border-white/10 shrink-0" />
-            <div className="shrink-0">
-              <TvCctvPlayer
-                src={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
-                label="DLC"
-                subtitle="Tapo C545d"
-                cameraIp="192.168.1.106"
-                embedded={true}
-                liteMode={liteMode}
-              />
+          ) : (
+            <div data-tv-scroll className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar flex flex-col gap-5">
+              <div className="shrink-0">
+                <TvCctvPlayer
+                  src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
+                  label="Solar Camera"
+                  subtitle="Tapo C545d"
+                  cameraIp="192.168.1.111"
+                  embedded={true}
+                  liteMode={false}
+                />
+              </div>
+              <hr className="border-white/10 shrink-0" />
+              <div className="shrink-0">
+                <TvCctvPlayer
+                  src={process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
+                  label="DLC"
+                  subtitle="Tapo C545d"
+                  cameraIp="192.168.1.106"
+                  embedded={true}
+                  liteMode={false}
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
