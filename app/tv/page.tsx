@@ -242,6 +242,7 @@ function TvCctvPlayer({
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
   const [retryCount, setRetryCount] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
+  const [snapshotTick, setSnapshotTick] = useState(() => Date.now());
 
   // Use HLS on Chromecast-class devices. Haier/low-power TV WebViews get
   // fMP4 directly to avoid hls.js CPU/GPU overhead.
@@ -266,6 +267,24 @@ function TvCctvPlayer({
     }
   }, [src, lens, restartCount, retryCount, liteMode]);
 
+  const snapshotUrl = useMemo(() => {
+    if (!src || !liteMode) return undefined;
+    try {
+      const u = new URL(src);
+      const originalSrc = u.searchParams.get("src") || "tapo";
+      const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
+      const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
+
+      u.pathname = "/api/frame.jpeg";
+      u.searchParams.set("src", targetSrc);
+      u.searchParams.set("_ts", `${snapshotTick}`);
+      u.hash = "";
+      return u.toString();
+    } catch {
+      return undefined;
+    }
+  }, [src, lens, liteMode, snapshotTick]);
+
   const restartStream = useCallback(async () => {
     if (!src || restarting) return;
     setRestarting(true);
@@ -280,6 +299,7 @@ function TvCctvPlayer({
   }, [src, restarting]);
 
   useEffect(() => {
+    if (liteMode) return;
     const video = videoRef.current;
     if (!video || !streamUrl) return;
 
@@ -355,6 +375,13 @@ function TvCctvPlayer({
       }
     };
   }, [streamUrl, retryCount, isMuted, liteMode]);
+
+  useEffect(() => {
+    if (!liteMode || !src) return;
+    setStatus("loading");
+    const timer = window.setInterval(() => setSnapshotTick(Date.now()), 2000);
+    return () => window.clearInterval(timer);
+  }, [liteMode, src, lens, retryCount]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -469,7 +496,7 @@ function TvCctvPlayer({
             </button>
           </div>
 
-          {streamUrl && (
+          {!liteMode && streamUrl && (
             <button
               aria-label={isMuted ? "เปิดเสียงกล้อง" : "ปิดเสียงกล้อง"}
               onClick={toggleAudio}
@@ -502,7 +529,15 @@ function TvCctvPlayer({
         onClick={handleContainerClick}
         className="relative mt-4 flex aspect-video w-full cursor-pointer flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl"
       >
-        {src ? (
+        {liteMode && src ? (
+          <img
+            src={snapshotUrl}
+            alt={`${label} snapshot`}
+            onLoad={() => setStatus("live")}
+            onError={() => setStatus("error")}
+            className="block h-full w-full bg-slate-950 object-contain"
+          />
+        ) : src ? (
           <video
             ref={videoRef}
             autoPlay
@@ -528,7 +563,7 @@ function TvCctvPlayer({
             <span className={`h-2 w-2 rounded-full ${dotClass}`} />
             {label} · {statusLabel}
           </span>
-          <span>{liteMode ? "fMP4" : "HLS"}</span>
+          <span>{liteMode ? "JPEG 2s" : "HLS"}</span>
         </div>
 
         {status === "error" && src && (
