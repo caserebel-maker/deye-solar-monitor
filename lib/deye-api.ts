@@ -346,7 +346,7 @@ async function getDeyeAccessToken(config: DeyeConfig) {
   return normalizeToken(token.accessToken, token.tokenType);
 }
 
-async function deyePost<T>(path: string, body: Record<string, unknown>): Promise<T> {
+export async function deyePost<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const config = getConfig();
   if (!hasLiveConfig(config)) {
     throw new Error("Deye API credentials are not configured.");
