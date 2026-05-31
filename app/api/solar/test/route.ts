@@ -26,7 +26,7 @@ export async function GET() {
       stationId,
       granularity: 2,
       startAt: dateString(monthStart),
-      endAt: dateString(nextDay),
+      endAt: dateString(today),
     };
 
     results.history = await deyePost("/v1.0/station/history", results.historyParams);
