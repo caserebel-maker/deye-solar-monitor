@@ -507,10 +507,8 @@ export async function getSolarOverview(): Promise<SolarOverview> {
 
   try {
     const today = new Date();
-    const nextDay = new Date(today);
-    nextDay.setDate(today.getDate() + 1);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endAt = dateString(nextDay);
+    const endAt = dateString(today);
     const [latest, month] = await Promise.all([
       deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) }),
       deyePost<DeyeStationHistory>("/v1.0/station/history", {
