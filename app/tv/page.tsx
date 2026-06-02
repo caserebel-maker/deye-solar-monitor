@@ -894,7 +894,7 @@ export default function TvDashboardPage() {
                   src={activeTvCamera === "solar" ? process.env.NEXT_PUBLIC_CCTV_HLS_URL || "" : process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
                   label={activeTvCamera === "solar" ? "Solar Camera" : "DLC"}
                   subtitle="Tapo C545d"
-                  cameraIp={activeTvCamera === "solar" ? "192.168.1.111" : "192.168.1.106"}
+                  cameraIp={activeTvCamera === "solar" ? "192.168.1.109" : "192.168.1.106"}
                   embedded={true}
                   liteMode={true}
                 />
@@ -907,7 +907,7 @@ export default function TvDashboardPage() {
                   src={process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""}
                   label="Solar Camera"
                   subtitle="Tapo C545d"
-                  cameraIp="192.168.1.111"
+                  cameraIp="192.168.1.109"
                   embedded={true}
                   liteMode={false}
                 />

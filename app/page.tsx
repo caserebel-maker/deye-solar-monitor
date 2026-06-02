@@ -1318,7 +1318,7 @@ export default function DashboardPage() {
                   hasLensToggle={true}
                   hasPtz={true}
                   envName="NEXT_PUBLIC_CCTV_HLS_URL"
-                  cameraIp="192.168.1.111"
+                  cameraIp="192.168.1.109"
                   embedded={true}
                 />
               </div>
