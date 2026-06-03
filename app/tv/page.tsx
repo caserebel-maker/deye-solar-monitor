@@ -378,9 +378,12 @@ function TvCctvPlayer({
 
   useEffect(() => {
     if (!liteMode || !src) return;
-    setStatus("loading");
+    const loadingTimer = window.setTimeout(() => setStatus("loading"), 0);
     const timer = window.setInterval(() => setSnapshotTick(Date.now()), 2000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(loadingTimer);
+      window.clearInterval(timer);
+    };
   }, [liteMode, src, lens, retryCount]);
 
   useEffect(() => {
@@ -587,14 +590,13 @@ export default function TvDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [time, setTime] = useState<string>("");
   const [dateStr, setDateStr] = useState<string>("");
-  const [liteMode, setLiteMode] = useState(false);
-  const [activeTvCamera, setActiveTvCamera] = useState<"solar" | "dlc">("solar");
-
-  useEffect(() => {
+  const [liteMode] = useState(() => {
+    if (typeof window === "undefined") return false;
     const params = new URLSearchParams(window.location.search);
     const ua = window.navigator.userAgent.toLowerCase();
-    setLiteMode(params.get("lite") === "1" || ua.includes("haier") || ua.includes("matrixtv"));
-  }, []);
+    return params.get("lite") === "1" || ua.includes("haier") || ua.includes("matrixtv");
+  });
+  const [activeTvCamera, setActiveTvCamera] = useState<"solar" | "dlc">("solar");
 
   // Live Digital Clock (updated every second)
   useEffect(() => {

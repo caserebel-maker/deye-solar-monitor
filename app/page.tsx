@@ -47,7 +47,9 @@ import {
   MoonStar,
   PlugZap,
   RefreshCw,
+  Server,
   Sun,
+  Thermometer,
   Volume2,
   VolumeX,
   Zap,
@@ -59,6 +61,18 @@ type DashboardData = {
   overview: SolarOverview;
   history: SolarHistory;
   alarms: SolarAlarms;
+};
+
+type ServerStatus = {
+  id: string;
+  name: string;
+  role: string;
+  status: "online" | "warning" | "offline";
+  temperatureC: number | null;
+  maxSensor: string | null;
+  fanRpm: number | null;
+  detail: string;
+  updatedAt: string;
 };
 
 type ThemeMode = "light" | "dark";
@@ -944,6 +958,93 @@ function weatherTone(code: number, isDay = true) {
   return isDay ? "text-amber-400" : "text-indigo-300";
 }
 
+function ServerStatusStrip() {
+  const [servers, setServers] = useState<ServerStatus[]>([]);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch("/api/server-status", { cache: "no-store" })
+        .then((response) => response.json())
+        .then((data: { updatedAt?: string; servers?: ServerStatus[] }) => {
+          if (cancelled) return;
+          setServers(data.servers ?? []);
+          setUpdatedAt(data.updatedAt ?? null);
+        })
+        .catch(() => {
+          if (!cancelled) setServers([]);
+        });
+    };
+    load();
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  if (servers.length === 0) return null;
+
+  return (
+    <section className="server-status-strip glass premium-panel rounded-3xl px-4 py-3 sm:px-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="rounded-2xl border border-white/45 bg-white/30 p-2 text-cyan-300">
+            <Server className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] eyebrow-text">System thermal status</p>
+            {updatedAt && <p className="mt-0.5 text-[11px] text-slate-500">Updated {new Date(updatedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</p>}
+          </div>
+        </div>
+        <div className="grid flex-1 gap-2 md:grid-cols-2">
+          {servers.map((server) => (
+            <ServerStatusPill key={server.id} server={server} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ServerStatusPill({ server }: { server: ServerStatus }) {
+  const tone =
+    server.status === "offline"
+      ? "border-rose-300/35 bg-rose-500/10 text-rose-200"
+      : server.status === "warning"
+        ? "border-amber-300/35 bg-amber-400/10 text-amber-100"
+        : "border-emerald-300/30 bg-emerald-400/10 text-emerald-100";
+  const dot =
+    server.status === "offline"
+      ? "bg-rose-400"
+      : server.status === "warning"
+        ? "bg-amber-300"
+        : "bg-emerald-400";
+
+  return (
+    <div className={`server-status-pill flex min-w-0 items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 ${tone}`}>
+      <div className="flex min-w-0 items-center gap-3">
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dot}`} />
+        <div className="min-w-0">
+          <p className="server-status-title truncate text-sm font-bold">{server.name}</p>
+          <p className="server-status-detail truncate text-[11px]">{server.role} · {server.detail}</p>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3 text-right">
+        {server.fanRpm !== null && <span className="server-status-detail hidden text-[11px] sm:inline">{server.fanRpm} RPM</span>}
+        <div>
+          <p className="server-status-temp data-readout flex items-center justify-end gap-1 text-xl font-black">
+            <Thermometer className="h-4 w-4" />
+            {server.temperatureC !== null ? `${Math.round(server.temperatureC)}°` : "--°"}
+          </p>
+          <p className="server-status-detail text-[10px] uppercase tracking-wide">{server.maxSensor ?? server.status}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function WeatherForecastCard({ forecast }: { forecast: WeatherForecast | null }) {
   if (!forecast || forecast.hourly.length === 0) return null;
 
@@ -1340,6 +1441,7 @@ export default function DashboardPage() {
         </section>
 
         <section className="mt-4 grid gap-4">
+          <ServerStatusStrip />
           <WeatherForecastCard forecast={weather} />
           <section className="glass premium-panel rounded-3xl p-5" id="plant-section">
             <div className="flex flex-wrap items-center justify-between gap-3">

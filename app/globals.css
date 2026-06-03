@@ -147,6 +147,40 @@ select {
   font-variant-numeric: tabular-nums;
 }
 
+.server-status-strip {
+  min-height: 4.6rem;
+}
+
+.server-status-pill {
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(99, 102, 241, 0.1)),
+    rgba(8, 24, 45, 0.42);
+}
+
+.server-status-title,
+.server-status-temp {
+  color: #f8fbff;
+}
+
+.server-status-detail {
+  color: rgba(203, 213, 225, 0.74);
+}
+
+.light-dashboard .server-status-pill {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(236, 252, 255, 0.48)),
+    rgba(255, 255, 255, 0.38);
+}
+
+.light-dashboard .server-status-title,
+.light-dashboard .server-status-temp {
+  color: #172033;
+}
+
+.light-dashboard .server-status-detail {
+  color: rgba(71, 85, 105, 0.78);
+}
+
 .pulse-dot {
   position: relative;
 }
