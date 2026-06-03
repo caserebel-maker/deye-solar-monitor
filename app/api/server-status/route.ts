@@ -46,16 +46,19 @@ async function readUbuntuStatus(): Promise<ServerStatus> {
       sensors?: string;
     };
     const parsed = parseSensors(data.sensors ?? "");
-    const temperatureC = parsed.max?.value ?? null;
+    const temperatureC = parsed.cpu?.value ?? parsed.max?.value ?? null;
+    const hotspot = parsed.max && parsed.cpu && parsed.max.name !== parsed.cpu.name
+      ? ` · hotspot ${parsed.max.name} ${Math.round(parsed.max.value)}°`
+      : "";
     return {
       id: "ubuntu-macmini",
       name: "Mac mini Ubuntu",
       role: data.hostname ?? "pond-server",
-      status: temperatureC !== null && temperatureC >= 85 ? "warning" : "online",
+      status: (parsed.max?.value ?? temperatureC ?? 0) >= 85 ? "warning" : "online",
       temperatureC,
-      maxSensor: parsed.max?.name ?? null,
+      maxSensor: parsed.cpu?.name ?? parsed.max?.name ?? null,
       fanRpm: parsed.fanRpm,
-      detail: data.uptime ?? "Health endpoint online",
+      detail: `${data.uptime ?? "Health endpoint online"}${hotspot}`,
       updatedAt: data.time ?? new Date().toISOString(),
     };
   } catch (error) {
@@ -135,6 +138,14 @@ function parseSensors(text: string) {
     if (!current || next.value > current.value) return next;
     return current;
   }, null);
+  const coreReadings = readings.filter((reading) => /^Core \d+$/i.test(reading.name));
+  const cpuReadings = coreReadings.length > 0
+    ? coreReadings
+    : readings.filter((reading) => /^(TC0D|TC0P|TC0G|TCPG|Tp0C)$/i.test(reading.name));
+  const cpu = cpuReadings.reduce<{ name: string; value: number } | null>((current, next) => {
+    if (!current || next.value > current.value) return next;
+    return current;
+  }, null);
 
-  return { max, fanRpm };
+  return { max, cpu, fanRpm };
 }
