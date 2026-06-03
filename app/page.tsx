@@ -827,22 +827,42 @@ function CctvLivePlayer({
   // browsers handle without any negotiation channel.
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<"loading" | "live" | "error">("loading");
+  const [cacheBuster, setCacheBuster] = useState(0);
+  const streamStartTimeRef = useRef<number | null>(null);
+
+  // Derive streamUrl with the cache buster query parameter
+  const streamUrl = useMemo(() => {
+    if (!src) return "";
+    try {
+      const url = new URL(src);
+      url.searchParams.set("_cb", cacheBuster.toString());
+      return url.toString();
+    } catch {
+      return src;
+    }
+  }, [src, cacheBuster]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     setStatus("loading");
-    const onPlaying = () => setStatus("live");
+    const onPlaying = () => {
+      setStatus("live");
+      if (streamStartTimeRef.current === null) {
+        streamStartTimeRef.current = Date.now() / 1000 - video.currentTime;
+      }
+    };
     const onWaiting = () => setStatus("loading");
     const onStalled = () => setStatus("loading");
     const onError = () => setStatus("error");
+
     video.addEventListener("playing", onPlaying);
     video.addEventListener("waiting", onWaiting);
     video.addEventListener("stalled", onStalled);
     video.addEventListener("error", onError);
 
-    video.src = src;
+    video.src = streamUrl;
     video.play().catch(() => {
       // Autoplay blocked → keep controls visible so user can tap.
     });
@@ -856,7 +876,7 @@ function CctvLivePlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [src]);
+  }, [streamUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -874,27 +894,77 @@ function CctvLivePlayer({
     if (status === "live") return;
 
     const timer = setTimeout(() => {
-      const video = videoRef.current;
-      if (video) {
-        console.log(`Stream stalled/error (status=${status}) for 8 seconds, auto-reconnecting...`);
-        setStatus("loading");
-        try {
-          const url = new URL(src);
-          url.searchParams.set("_t", Date.now().toString());
-          video.src = url.toString();
-          video.load();
-          video.play().catch(() => {});
-        } catch {
-          // Fallback if URL parsing fails
-          video.src = src;
-          video.load();
-          video.play().catch(() => {});
-        }
-      }
+      console.log(`Stream stalled/error (status=${status}) for 8 seconds, auto-reconnecting...`);
+      streamStartTimeRef.current = null;
+      setCacheBuster(Date.now());
     }, 8000);
 
     return () => clearTimeout(timer);
-  }, [status, src]);
+  }, [status]);
+
+  // Periodic drift check to keep the video feed strictly real-time
+  useEffect(() => {
+    if (status !== "live") return;
+
+    const interval = setInterval(() => {
+      const video = videoRef.current;
+      if (!video || streamStartTimeRef.current === null) return;
+
+      const elapsedWallClock = Date.now() / 1000 - streamStartTimeRef.current;
+      const drift = elapsedWallClock - video.currentTime;
+
+      if (drift > 3.5) {
+        console.log(`CCTV stream drift detected: ${drift.toFixed(2)}s. Reloading to catch up...`);
+        streamStartTimeRef.current = null;
+        setCacheBuster(Date.now());
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [status]);
+
+  // Monitor visibility and focus to reload if backgrounded or lagged behind
+  useEffect(() => {
+    const checkDriftAndReload = () => {
+      const video = videoRef.current;
+      if (!video || status === "loading") return;
+
+      let shouldReload = false;
+      if (status === "error" || streamStartTimeRef.current === null) {
+        shouldReload = true;
+      } else {
+        const elapsedWallClock = Date.now() / 1000 - streamStartTimeRef.current;
+        const drift = elapsedWallClock - video.currentTime;
+        if (drift > 3.0) {
+          shouldReload = true;
+        }
+      }
+
+      if (shouldReload) {
+        console.log("CCTV stream reload triggered (tab focused or visibility changed to sync with real-time)...");
+        streamStartTimeRef.current = null;
+        setCacheBuster(Date.now());
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkDriftAndReload();
+      }
+    };
+
+    const handleFocus = () => {
+      checkDriftAndReload();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [streamUrl, status]);
 
   const dot =
     status === "live" ? "bg-emerald-400 animate-pulse" :
