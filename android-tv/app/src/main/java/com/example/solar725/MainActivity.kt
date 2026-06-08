@@ -101,6 +101,7 @@ fun SolarWebViewScreen(onWebViewCreated: (WebView) -> Unit) {
     AndroidView(
         factory = { context ->
             WebView(context).apply {
+                setLayerType(View.LAYER_TYPE_SOFTWARE, null)
                 keepScreenOn = true
                 isFocusable = true
                 isFocusableInTouchMode = true

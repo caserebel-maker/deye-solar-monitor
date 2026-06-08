@@ -35,7 +35,7 @@ async function readUbuntuStatus(): Promise<ServerStatus> {
   try {
     const response = await fetch(ubuntuHealthUrl, {
       cache: "no-store",
-      signal: AbortSignal.timeout(6500),
+      signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
@@ -70,7 +70,7 @@ async function readM2ProStatus(): Promise<ServerStatus> {
   try {
     const response = await fetch(m2HealthUrl, {
       cache: "no-store",
-      signal: AbortSignal.timeout(6500),
+      signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
