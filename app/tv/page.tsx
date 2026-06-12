@@ -29,7 +29,7 @@ type DashboardData = {
   history: SolarHistory;
 };
 
-const refreshMs = 30_000;
+const refreshMs = 60_000;
 
 function formatPower(value: number) {
   const abs = Math.abs(value);
@@ -627,13 +627,12 @@ export default function TvDashboardPage() {
   // Telemetry fetching logic
   const loadData = useCallback(async () => {
     try {
-      const [overview, history, forecast] = await Promise.all([
-        fetch("/api/solar/overview", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/solar/history", { cache: "no-store" }).then((res) => res.json()),
-        fetch("/api/weather/forecast", { cache: "no-store" })
-          .then((res) => (res.ok ? res.json() : null))
-          .catch(() => null),
-      ]);
+      const dashboard = await fetch("/api/solar/dashboard").then((res) => res.json());
+      if (dashboard.error) {
+        throw new Error(dashboard.error);
+      }
+
+      const { overview, history, weather: forecast } = dashboard;
 
       if (overview.error || history.error) {
         throw new Error(overview.error ?? history.error);
@@ -649,7 +648,7 @@ export default function TvDashboardPage() {
     }
   }, []);
 
-  // 30-second telemetry polling
+  // 60-second telemetry polling; the dashboard API is CDN-cached for 55s.
   useEffect(() => {
     queueMicrotask(() => void loadData());
     const timer = setInterval(loadData, refreshMs);
