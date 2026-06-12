@@ -141,6 +141,9 @@ type TokenResponse = {
   tokenType?: string;
 };
 
+const TOKEN_CACHE_MS = 50 * 60 * 1000;
+let tokenCache: { key: string; authorization: string; expiresAt: number } | null = null;
+
 const numberOr = (value: unknown, fallback: number) => {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -319,9 +322,14 @@ async function getDeyeAccessToken(config: DeyeConfig) {
     throw new Error("Deye AppId, AppSecret, and password are required for live API.");
   }
 
+  const identity = config.email ?? config.username;
+  const cacheKey = [config.baseUrl, config.appId, identity, config.companyId].join("|");
+  if (tokenCache?.key === cacheKey && tokenCache.expiresAt > Date.now()) {
+    return tokenCache.authorization;
+  }
+
   const url = new URL("/v1.0/account/token", config.baseUrl);
   url.searchParams.set("appId", config.appId);
-  const identity = config.email ?? config.username;
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -343,7 +351,13 @@ async function getDeyeAccessToken(config: DeyeConfig) {
     throw new Error(`Deye token request was rejected: ${token.msg ?? "unknown error"}`);
   }
 
-  return normalizeToken(token.accessToken, token.tokenType);
+  const authorization = normalizeToken(token.accessToken, token.tokenType);
+  tokenCache = {
+    key: cacheKey,
+    authorization,
+    expiresAt: Date.now() + TOKEN_CACHE_MS,
+  };
+  return authorization;
 }
 
 export async function deyePost<T>(path: string, body: Record<string, unknown>): Promise<T> {

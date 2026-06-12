@@ -77,7 +77,7 @@ type ServerStatus = {
 
 type ThemeMode = "light" | "dark";
 type ActiveTab = "overview" | "devices" | "alerts" | "plant";
-const refreshMs = 30_000;
+const refreshMs = 60_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
 const tabs: Array<{ id: ActiveTab; label: string; icon: typeof Home }> = [
@@ -1249,14 +1249,12 @@ export default function DashboardPage() {
     if (manual) setIsRefreshing(true);
     try {
       setError(null);
-      const [overview, history, alarms, forecast] = await Promise.all([
-        fetch("/api/solar/overview", { cache: "no-store" }).then((response) => response.json()),
-        fetch("/api/solar/history", { cache: "no-store" }).then((response) => response.json()),
-        fetch("/api/solar/alarms", { cache: "no-store" }).then((response) => response.json()),
-        fetch("/api/weather/forecast", { cache: "no-store" })
-          .then((response) => (response.ok ? response.json() : null))
-          .catch(() => null),
-      ]);
+      const url = manual ? `/api/solar/dashboard?refresh=${Date.now()}` : "/api/solar/dashboard";
+      const dashboard = await fetch(url).then((response) => response.json());
+      if (dashboard.error) {
+        throw new Error(dashboard.error);
+      }
+      const { overview, history, alarms, weather: forecast } = dashboard;
 
       if (overview.error || history.error || alarms.error) {
         throw new Error(overview.error ?? history.error ?? alarms.error);
@@ -1406,9 +1404,11 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 sm:shrink-0">
               <h1 className="text-2xl font-semibold leading-none text-slate-950 sm:text-xl">725</h1>
               <button
-                aria-label="Reload page"
+                aria-label="Refresh data"
                 className="rounded-full bg-white/60 p-2 text-slate-600 shadow-sm"
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  void loadData(true);
+                }}
                 type="button"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
