@@ -150,25 +150,27 @@ select {
 .status-badge {
   font-weight: 800;
   text-transform: lowercase;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 10px 26px rgba(2, 6, 23, 0.16);
 }
 
 .status-badge-online {
-  border-color: rgba(52, 211, 153, 0.5);
-  background: rgba(16, 185, 129, 0.18);
-  color: #bbf7d0;
+  border-color: rgba(134, 239, 172, 0.72);
+  background: linear-gradient(135deg, #16a34a, #059669);
+  color: #ffffff;
 }
 
 .status-badge-warning {
-  border-color: rgba(251, 191, 36, 0.62);
-  background: rgba(245, 158, 11, 0.2);
-  color: #fde68a;
+  border-color: rgba(253, 224, 71, 0.84);
+  background: linear-gradient(135deg, #facc15, #f59e0b);
+  color: #451a03;
 }
 
 .status-badge-offline {
-  border-color: rgba(251, 113, 133, 0.72);
-  background: rgba(244, 63, 94, 0.22);
-  color: #ffe4e6;
+  border-color: rgba(254, 205, 211, 0.78);
+  background: linear-gradient(135deg, #ef4444, #be123c);
+  color: #ffffff;
 }
 
 .status-dot-online {
@@ -187,21 +189,21 @@ select {
 }
 
 .light-dashboard .status-badge-online {
-  border-color: rgba(16, 185, 129, 0.38);
-  background: rgba(209, 250, 229, 0.72);
-  color: #047857;
+  border-color: rgba(21, 128, 61, 0.18);
+  background: linear-gradient(135deg, #22c55e, #059669);
+  color: #ffffff;
 }
 
 .light-dashboard .status-badge-warning {
-  border-color: rgba(245, 158, 11, 0.42);
-  background: rgba(254, 243, 199, 0.82);
-  color: #92400e;
+  border-color: rgba(180, 83, 9, 0.2);
+  background: linear-gradient(135deg, #fde047, #f59e0b);
+  color: #451a03;
 }
 
 .light-dashboard .status-badge-offline {
-  border-color: rgba(225, 29, 72, 0.42);
-  background: rgba(255, 228, 230, 0.82);
-  color: #be123c;
+  border-color: rgba(190, 18, 60, 0.2);
+  background: linear-gradient(135deg, #f43f5e, #be123c);
+  color: #ffffff;
 }
 
 .server-status-strip {
