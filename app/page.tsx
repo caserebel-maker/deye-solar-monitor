@@ -109,10 +109,16 @@ function formatEnergyToday(value: number) {
 }
 
 function statusStyle(status: SolarOverview["status"]) {
-  if (status === "error") return "border-rose-200 bg-rose-50/75 text-rose-700";
-  if (status === "warning") return "border-amber-200 bg-amber-50/75 text-amber-700";
-  if (status === "offline") return "border-slate-200 bg-slate-50/75 text-slate-600";
-  return "border-emerald-200 bg-emerald-50/75 text-emerald-700";
+  if (status === "error") return "status-badge status-badge-offline";
+  if (status === "warning") return "status-badge status-badge-warning";
+  if (status === "offline") return "status-badge status-badge-offline";
+  return "status-badge status-badge-online";
+}
+
+function statusDotStyle(status: SolarOverview["status"]) {
+  if (status === "error" || status === "offline") return "status-dot-offline";
+  if (status === "warning") return "status-dot-warning";
+  return "status-dot-online";
 }
 
 function sourceLabel(source: DashboardData["overview"]["source"]) {
@@ -1425,7 +1431,7 @@ export default function DashboardPage() {
             </div>
             <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 text-xs text-slate-500 sm:mt-0 sm:flex sm:flex-wrap sm:gap-3 sm:text-sm lg:min-w-0 lg:flex-nowrap">
               <span className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1 ${statusStyle(data.overview.status)}`}>
-                <span className="pulse-dot h-2 w-2 rounded-full bg-emerald-400 text-emerald-400" />
+                <span className={`pulse-dot h-2 w-2 rounded-full ${statusDotStyle(data.overview.status)}`} />
                 {data.overview.status}
               </span>
               <span className="min-w-0 truncate">Online Inverter 1 · {sourceLabel(data.overview.source)}</span>
