@@ -121,8 +121,11 @@ function statusDotStyle(status: SolarOverview["status"]) {
   return "status-dot-online";
 }
 
-function sourceLabel(source: DashboardData["overview"]["source"]) {
-  return source === "live" ? "Live Deye Cloud API" : "Mock data";
+function sourceLabel(overview: DashboardData["overview"]) {
+  if (overview.source !== "live") return "Mock data";
+  if (overview.status === "offline") return "Last known Deye reading";
+  if (overview.status === "warning") return "Delayed Deye Cloud API";
+  return "Live Deye Cloud API";
 }
 
 function percent(part: number, total: number) {
@@ -133,6 +136,29 @@ function percent(part: number, total: number) {
 function donutPercent(item: DonutItem, items: DonutItem[]) {
   const total = items.reduce((sum, current) => sum + current.value, 0);
   return percent(item.value, total);
+}
+
+function DeyeOfflineNotice({ overview }: { overview: SolarOverview }) {
+  if (overview.status !== "offline") return null;
+
+  const lastUpdated = new Date(overview.lastUpdated).toLocaleString("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  return (
+    <section className="mb-3 flex gap-3 rounded-3xl border border-rose-300/45 bg-rose-500/16 px-4 py-3 text-rose-50 shadow-lg shadow-rose-950/10 backdrop-blur-2xl sm:mb-4 sm:items-center">
+      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-rose-200/40 bg-rose-400/20 text-rose-100">
+        <AlertTriangle className="h-5 w-5" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-black">ระบบ Deye offline อยู่</p>
+        <p className="mt-1 text-xs leading-relaxed text-rose-50/82 sm:text-sm">
+          ตัวเลขทั้งหมดที่แสดงเป็นค่าล่าสุดก่อนระบบล่ม อัปเดตล่าสุด {lastUpdated} เมื่อ Deye กลับมาออนไลน์ ระบบจะแสดงผล realtime อัตโนมัติ
+        </p>
+      </div>
+    </section>
+  );
 }
 
 function DonutPanel({
@@ -1434,7 +1460,7 @@ export default function DashboardPage() {
                 <span className={`pulse-dot h-2 w-2 rounded-full ${statusDotStyle(data.overview.status)}`} />
                 {data.overview.status}
               </span>
-              <span className="min-w-0 truncate">Online Inverter 1 · {sourceLabel(data.overview.source)}</span>
+              <span className="min-w-0 truncate">Inverter 1 · {sourceLabel(data.overview)}</span>
               <span className="col-span-2 truncate sm:col-span-1 lg:min-w-0">Last update {new Date(data.overview.lastUpdated).toLocaleString()}</span>
             </div>
             <div className="mt-3 sm:hidden">
@@ -1470,6 +1496,8 @@ export default function DashboardPage() {
             ))}
           </nav>
         </header>
+
+        <DeyeOfflineNotice overview={data.overview} />
 
         {error && (
           <section className="mb-4 rounded-3xl border border-rose-200 bg-rose-50/80 p-4 text-rose-700 backdrop-blur">
