@@ -252,6 +252,32 @@ export function mockOverview(): SolarOverview {
   };
 }
 
+function offlineOverview(): SolarOverview {
+  return {
+    source: "live",
+    status: "offline",
+    lastUpdated: nowIso(),
+    metrics: {
+      solarKw: 0,
+      loadKw: 0,
+      batterySoc: 0,
+      batteryPowerKw: 0,
+      gridPowerKw: 0,
+      todayProductionKwh: 0,
+      todayLoadKwh: 0,
+      monthlyProductionKwh: 0,
+      monthlyLoadKwh: 0,
+    },
+    flows: {
+      solarToHomeKw: 0,
+      solarToBatteryKw: 0,
+      solarToGridKw: 0,
+      batteryToHomeKw: 0,
+      gridToHomeKw: 0,
+    },
+  };
+}
+
 export function mockHistory(): SolarHistory {
   const hours = Array.from({ length: 24 }, (_, index) => {
     const hour = String(index).padStart(2, "0");
@@ -536,21 +562,27 @@ export async function getSolarOverview(): Promise<SolarOverview> {
     const today = new Date();
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const endAt = dateString(today);
-    const [latest, month] = await Promise.all([
-      deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) }),
-      deyePost<DeyeStationHistory>("/v1.0/station/history", {
+    const latest = await deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) });
+    ensureSuccess(latest, "Deye station latest");
+
+    const month = await deyePost<DeyeStationHistory>("/v1.0/station/history", {
         stationId: Number(config.stationId),
         granularity: 2,
         startAt: dateString(monthStart),
         endAt,
-      }),
-    ]);
-    ensureSuccess(latest, "Deye station latest");
-    ensureSuccess(month, "Deye station history");
+      })
+      .then((response) => {
+        ensureSuccess(response, "Deye station history");
+        return response;
+      })
+      .catch((error) => {
+        console.error(error);
+        return undefined;
+      });
     return stationLatestToOverview(latest, month);
   } catch (error) {
     console.error(error);
-    return { ...mockOverview(), status: "offline" };
+    return offlineOverview();
   }
 }
 

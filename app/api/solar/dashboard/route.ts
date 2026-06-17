@@ -3,8 +3,8 @@ import { getSolarAlarms, getSolarHistory, getSolarOverview } from "@/lib/deye-ap
 import { getWeatherForecast } from "@/lib/weather";
 
 const headers = {
-  "Cache-Control": "public, max-age=0, must-revalidate",
-  "Vercel-CDN-Cache-Control": "s-maxage=55, stale-while-revalidate=120",
+  "Cache-Control": "no-store",
+  "Vercel-CDN-Cache-Control": "no-store",
 };
 
 export async function GET() {
