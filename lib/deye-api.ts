@@ -150,6 +150,8 @@ const numberOr = (value: unknown, fallback: number) => {
 };
 
 const nowIso = () => new Date().toISOString();
+const warningStaleMs = 5 * 60 * 1000;
+const offlineStaleMs = 15 * 60 * 1000;
 
 function powerKw(value: unknown, fallback = 0) {
   const parsed = numberOr(value, fallback);
@@ -172,6 +174,16 @@ function parseDeyeDate(value: unknown) {
   }
 
   return nowIso();
+}
+
+function freshnessStatus(lastUpdated: string): SystemStatus {
+  const updatedAt = new Date(lastUpdated).getTime();
+  if (!Number.isFinite(updatedAt)) return "warning";
+
+  const ageMs = Date.now() - updatedAt;
+  if (ageMs >= offlineStaleMs) return "offline";
+  if (ageMs >= warningStaleMs) return "warning";
+  return "online";
 }
 
 function getConfig(): DeyeConfig {
@@ -392,6 +404,7 @@ function ensureSuccess(response: { success?: boolean; msg?: string }, label: str
 }
 
 function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStationHistory): SolarOverview {
+  const lastUpdated = parseDeyeDate(station.lastUpdateTime);
   const solarKw = powerKw(station.generationPower);
   const loadKw = powerKw(station.consumptionPower);
   const chargeKw = powerKw(station.chargePower);
@@ -422,8 +435,8 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
 
   return {
     source: "live",
-    status: "online",
-    lastUpdated: parseDeyeDate(station.lastUpdateTime),
+    status: freshnessStatus(lastUpdated),
+    lastUpdated,
     metrics: {
       solarKw,
       loadKw,
