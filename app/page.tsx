@@ -77,7 +77,9 @@ type ServerStatus = {
 
 type ThemeMode = "light" | "dark";
 type ActiveTab = "overview" | "devices" | "alerts" | "plant";
-const refreshMs = 15_000;
+const onlineRefreshMs = 60_000;
+const recoveryRefreshMs = 15_000;
+const hiddenRefreshMs = 5 * 60_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
 const tabs: Array<{ id: ActiveTab; label: string; icon: typeof Home }> = [
@@ -1275,6 +1277,7 @@ export default function DashboardPage() {
   const [pullDistance, setPullDistance] = useState(0);
   const pullStartY = useRef(0);
   const pullActive = useRef(false);
+  const overviewStatusRef = useRef<SolarOverview["status"] | null>(null);
   const PULL_THRESHOLD = 70;
 
   const loadData = useCallback(async (manual = false) => {
@@ -1293,6 +1296,7 @@ export default function DashboardPage() {
       }
 
       setData({ overview, history, alarms });
+      overviewStatusRef.current = overview.status;
       if (forecast && !forecast.error) setWeather(forecast as WeatherForecast);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load solar data.");
@@ -1307,14 +1311,24 @@ export default function DashboardPage() {
   }, [theme]);
 
   useEffect(() => {
-    const run = () => {
-      void loadData();
+    let timer: number | undefined;
+    let stopped = false;
+
+    const nextDelay = () => {
+      if (document.visibilityState !== "visible") return hiddenRefreshMs;
+      const status = overviewStatusRef.current;
+      return status === "warning" || status === "offline" || status === "error" ? recoveryRefreshMs : onlineRefreshMs;
     };
-    const initial = window.setTimeout(run, 0);
-    const timer = window.setInterval(run, refreshMs);
+
+    const run = async () => {
+      await loadData();
+      if (!stopped) timer = window.setTimeout(run, nextDelay());
+    };
+
+    timer = window.setTimeout(run, 0);
     return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(timer);
+      stopped = true;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
   }, [loadData]);
 
