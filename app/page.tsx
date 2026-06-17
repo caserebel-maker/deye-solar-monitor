@@ -77,7 +77,7 @@ type ServerStatus = {
 
 type ThemeMode = "light" | "dark";
 type ActiveTab = "overview" | "devices" | "alerts" | "plant";
-const refreshMs = 60_000;
+const refreshMs = 15_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
 const tabs: Array<{ id: ActiveTab; label: string; icon: typeof Home }> = [
@@ -1281,8 +1281,8 @@ export default function DashboardPage() {
     if (manual) setIsRefreshing(true);
     try {
       setError(null);
-      const url = manual ? `/api/solar/dashboard?refresh=${Date.now()}` : "/api/solar/dashboard";
-      const dashboard = await fetch(url).then((response) => response.json());
+      const url = `/api/solar/dashboard?refresh=${Date.now()}`;
+      const dashboard = await fetch(url, { cache: "no-store" }).then((response) => response.json());
       if (dashboard.error) {
         throw new Error(dashboard.error);
       }
