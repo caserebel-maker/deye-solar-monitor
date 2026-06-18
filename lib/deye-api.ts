@@ -150,8 +150,8 @@ const numberOr = (value: unknown, fallback: number) => {
 };
 
 const nowIso = () => new Date().toISOString();
-const warningStaleMs = 5 * 60 * 1000;
-const offlineStaleMs = 15 * 60 * 1000;
+const warningStaleMs = 30 * 60 * 1000;
+const offlineStaleMs = 90 * 60 * 1000;
 
 function powerKw(value: unknown, fallback = 0) {
   const parsed = numberOr(value, fallback);
