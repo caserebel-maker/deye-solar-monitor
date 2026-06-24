@@ -356,7 +356,7 @@ function FlowPath({
   color: string;
   delay?: string;
 }) {
-  if (value <= 0.005) return null;
+  if (value <= 0.001) return null;
   return (
     <path
       d={d}
@@ -433,7 +433,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
   const gridToInverter = metrics.gridPowerKw >= 0 ? Math.max(metrics.gridPowerKw, flows.gridToHomeKw, 0) : 0;
   const inverterToGrid = metrics.gridPowerKw < 0 ? Math.max(Math.abs(metrics.gridPowerKw), flows.solarToGridKw, 0) : 0;
   const inverterToUps = metrics.loadKw;
-  const gridLabel = gridToInverter > 0.005 ? "Grid Import" : inverterToGrid > 0.005 ? "Grid Export" : "Grid";
+  const gridLabel = gridToInverter > 0.001 ? "Grid Import" : inverterToGrid > 0.001 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
     solarToInverter: "M 90 119 V 175 Q 90 195 110 195 H 280",
@@ -473,11 +473,11 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
               <stop offset="100%" stopColor="#f472b6" />
             </linearGradient>
           </defs>
-          {solarToInverter <= 0.005 && <BaseFlowPath d={paths.solarToInverter} />}
-          {batteryToInverter <= 0.005 && inverterToBattery <= 0.005 && <BaseFlowPath d={paths.batteryToInverter} />}
-          {gridToInverter <= 0.005 && inverterToGrid <= 0.005 && <BaseFlowPath d={paths.gridToInverter} />}
+          {solarToInverter <= 0.001 && <BaseFlowPath d={paths.solarToInverter} />}
+          {batteryToInverter <= 0.001 && inverterToBattery <= 0.001 && <BaseFlowPath d={paths.batteryToInverter} />}
+          {gridToInverter <= 0.001 && inverterToGrid <= 0.001 && <BaseFlowPath d={paths.gridToInverter} />}
           <BaseFlowPath d={paths.inverterToHome} />
-          {inverterToUps <= 0.005 && <BaseFlowPath d={paths.inverterToUps} />}
+          {inverterToUps <= 0.001 && <BaseFlowPath d={paths.inverterToUps} />}
           <FlowPath d={paths.solarToInverter} value={solarToInverter} color="#fbbf24" delay="0s" />
           <FlowPath d={paths.batteryToInverter} value={batteryToInverter} color="#fbbf24" delay="-0.45s" />
           <FlowPath d={paths.inverterToBattery} value={inverterToBattery} color="#10b981" delay="-0.45s" />
@@ -509,11 +509,11 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
         </svg>
         <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
-            {solarToInverter <= 0.005 && <BaseFlowPath d={mobilePaths.solarToInverter} />}
-            {batteryToInverter <= 0.005 && inverterToBattery <= 0.005 && <BaseFlowPath d={mobilePaths.batteryToInverter} />}
-            {gridToInverter <= 0.005 && inverterToGrid <= 0.005 && <BaseFlowPath d={mobilePaths.gridToInverter} />}
+            {solarToInverter <= 0.001 && <BaseFlowPath d={mobilePaths.solarToInverter} />}
+            {batteryToInverter <= 0.001 && inverterToBattery <= 0.001 && <BaseFlowPath d={mobilePaths.batteryToInverter} />}
+            {gridToInverter <= 0.001 && inverterToGrid <= 0.001 && <BaseFlowPath d={mobilePaths.gridToInverter} />}
             <BaseFlowPath d={mobilePaths.inverterToLoad} />
-            {inverterToUps <= 0.005 && <BaseFlowPath d={mobilePaths.inverterToUps} />}
+            {inverterToUps <= 0.001 && <BaseFlowPath d={mobilePaths.inverterToUps} />}
             <FlowPath d={mobilePaths.solarToInverter} value={solarToInverter} color="#fbbf24" delay="0s" />
             <FlowPath d={mobilePaths.batteryToInverter} value={batteryToInverter} color="#fbbf24" delay="-0.45s" />
             <FlowPath d={mobilePaths.inverterToBattery} value={inverterToBattery} color="#10b981" delay="-0.45s" />
@@ -535,7 +535,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <MobileFlowNode
             className="left-[78%] top-[20%]"
             label={gridLabel}
-            status={gridToInverter > 0.005 ? "On grid" : undefined}
+            status={gridToInverter > 0.001 ? "On grid" : undefined}
             value={formatCompactPower(gridValue)}
             icon={PlugZap}
             tone="text-white"
