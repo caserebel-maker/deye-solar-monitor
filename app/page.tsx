@@ -467,7 +467,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
               Vercel ใหม่
             </span>
             <span className="mt-1 max-w-[210px] truncate text-[11px] font-medium text-slate-400">
-              deye-solar-monitor-five · not old project
+              account PondSuriya20 · not old project
             </span>
           </div>
           <div className="rounded-2xl border border-indigo-100 bg-white/55 p-2">
