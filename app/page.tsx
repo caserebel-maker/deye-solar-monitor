@@ -39,6 +39,7 @@ import {
   CloudOff,
   Cpu,
   Droplets,
+  ExternalLink,
   Info,
   Home,
   Maximize,
@@ -82,6 +83,7 @@ const recoveryRefreshMs = 15_000;
 const hiddenRefreshMs = 5 * 60_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
+const currentDeploymentUrl = "https://deye-solar-monitor-five.vercel.app";
 const tabs: Array<{ id: ActiveTab; label: string; icon: typeof Home }> = [
   { id: "overview", label: "Overview", icon: ChartSpline },
   { id: "devices", label: "Devices", icon: Cpu },
@@ -286,6 +288,36 @@ function SkeletonDashboard() {
         <div className="skeleton h-96 rounded-lg" />
       </div>
     </main>
+  );
+}
+
+function DeploymentNotice() {
+  return (
+    <section className="mb-3 rounded-[1.35rem] border border-cyan-200/55 bg-slate-950/62 px-3 py-2.5 text-cyan-50 shadow-lg shadow-cyan-500/10 backdrop-blur-2xl sm:mb-4 sm:rounded-3xl sm:px-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/45 bg-emerald-400/16 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100">
+            <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.9)]" />
+            Current deploy
+          </span>
+          <span className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-sm font-semibold text-white">
+            Vercel ใหม่ · deye-solar-monitor
+          </span>
+          <span className="rounded-full border border-amber-300/28 bg-amber-300/10 px-3 py-1 text-xs font-medium text-amber-100">
+            ไม่ใช่ project เก่า monitor-solar-inverter-deye-battery
+          </span>
+        </div>
+        <a
+          className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-200/40 bg-cyan-300/12 px-3 py-1.5 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-300/20"
+          href={currentDeploymentUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
+          Open live Vercel
+          <ExternalLink className="h-4 w-4" />
+        </a>
+      </div>
+    </section>
   );
 }
 
@@ -1445,6 +1477,8 @@ export default function DashboardPage() {
         </div>
       )}
       <main className="mx-auto max-w-[1860px]" id="dashboard-top">
+        <DeploymentNotice />
+
         <header className="mb-3 flex flex-col gap-2 rounded-[1.4rem] border border-white/60 bg-white/38 px-3 py-2.5 shadow-xl shadow-indigo-500/10 backdrop-blur-2xl sm:mb-4 sm:flex-row sm:items-center sm:gap-3 sm:rounded-3xl sm:px-4 sm:py-3 sm:justify-between">
           <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-3 sm:flex-wrap lg:flex-nowrap lg:gap-4">
             <div className="flex items-center gap-2 sm:shrink-0">
