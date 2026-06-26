@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { getSolarAlarms, getSolarHistory, getSolarOverview } from "@/lib/deye-api";
 import { getWeatherForecast } from "@/lib/weather";
 
-const headers = {
-  "Cache-Control": "no-store",
-  "Vercel-CDN-Cache-Control": "no-store",
-};
+// ISR: Vercel caches the response for 60 seconds. Multiple clients polling
+// within that window get served from cache — only one function invocation per
+// 60-second window regardless of how many browsers are open.
+export const revalidate = 60;
 
 export async function GET() {
   try {
@@ -16,7 +16,7 @@ export async function GET() {
       getWeatherForecast(),
     ]);
 
-    return NextResponse.json({ overview, history, alarms, weather }, { headers });
+    return NextResponse.json({ overview, history, alarms, weather });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unexpected error" },
