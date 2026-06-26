@@ -187,22 +187,31 @@ function freshnessStatus(lastUpdated: string): SystemStatus {
 }
 
 function getConfig(): DeyeConfig {
+  const valueOrUndefined = (value: string | undefined) => {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : undefined;
+  };
+
   return {
-    baseUrl: process.env.DEYE_API_BASE_URL ?? "https://eu1-developer.deyecloud.com/v1.0",
-    appId: process.env.DEYE_APP_ID,
-    appSecret: process.env.DEYE_APP_SECRET,
-    apiKey: process.env.DEYE_API_KEY,
-    username: process.env.DEYE_USERNAME,
-    email: process.env.DEYE_EMAIL,
-    password: process.env.DEYE_PASSWORD,
-    companyId: process.env.DEYE_COMPANY_ID ?? "0",
-    stationId: process.env.DEYE_STATION_ID,
-    deviceId: process.env.DEYE_DEVICE_ID,
-    loggerSn: process.env.DEYE_LOGGER_SN,
+    baseUrl: valueOrUndefined(process.env.DEYE_API_BASE_URL) ?? "https://eu1-developer.deyecloud.com/v1.0",
+    appId: valueOrUndefined(process.env.DEYE_APP_ID),
+    appSecret: valueOrUndefined(process.env.DEYE_APP_SECRET),
+    apiKey: valueOrUndefined(process.env.DEYE_API_KEY),
+    username: valueOrUndefined(process.env.DEYE_USERNAME),
+    email: valueOrUndefined(process.env.DEYE_EMAIL),
+    password: valueOrUndefined(process.env.DEYE_PASSWORD),
+    companyId: valueOrUndefined(process.env.DEYE_COMPANY_ID) ?? "0",
+    stationId: valueOrUndefined(process.env.DEYE_STATION_ID),
+    deviceId: valueOrUndefined(process.env.DEYE_DEVICE_ID),
+    loggerSn: valueOrUndefined(process.env.DEYE_LOGGER_SN),
   };
 }
 
 function hasLiveConfig(config: DeyeConfig) {
+  if (config.apiKey) {
+    return Boolean(config.baseUrl && config.stationId);
+  }
+
   return Boolean(
     config.baseUrl &&
       config.appId &&
