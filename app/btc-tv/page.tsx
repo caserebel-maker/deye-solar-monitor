@@ -62,6 +62,7 @@ export default function BtcTvPage() {
   const [widgetStatus, setWidgetStatus] = useState<WidgetStatus>("loading");
 
   const selectedMarket = marketOptions.find((item) => item.symbol === symbol) ?? marketOptions[0];
+  const selectedMarketIndex = Math.max(0, marketOptions.findIndex((item) => item.symbol === symbol));
   const selectedTimeframe = timeframeOptions.find((item) => item.value === interval) ?? timeframeOptions[2];
   const selectedRange = rangeOptions[rangeIndex] ?? rangeOptions[3];
 
@@ -98,6 +99,11 @@ export default function BtcTvPage() {
 
   const moveRange = (direction: -1 | 1) => {
     setDraftRangeIndex((value) => Math.min(rangeOptions.length - 1, Math.max(0, value + direction)));
+  };
+
+  const moveMarket = (direction: -1 | 1) => {
+    const nextIndex = (selectedMarketIndex + direction + marketOptions.length) % marketOptions.length;
+    setSymbol(marketOptions[nextIndex].symbol);
   };
 
   useEffect(() => {
@@ -209,33 +215,47 @@ export default function BtcTvPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <label className="sr-only" htmlFor="btc-tv-symbol">Symbol</label>
-            <select
-              id="btc-tv-symbol"
-              value={symbol}
-              onChange={(event) => setSymbol(event.target.value)}
-              className="h-9 min-w-36 rounded-lg border border-white/15 bg-[#1a1d24] px-3 text-xs font-semibold text-white outline-none focus:border-emerald-400"
-            >
-              {marketOptions.map((item) => (
-                <option key={item.symbol} value={item.symbol}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1 rounded-lg border border-white/15 bg-[#1a1d24] p-1" role="group" aria-label="Market selector">
+              <button
+                type="button"
+                onClick={() => moveMarket(-1)}
+                aria-label="Previous market"
+                title="Previous market"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-white outline-none transition hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-emerald-300/70"
+              >
+                <ChevronLeft size={19} aria-hidden="true" />
+              </button>
+              <div className="min-w-28 px-2 text-center text-xs font-bold text-white" aria-live="polite">
+                {selectedMarket.label}
+              </div>
+              <button
+                type="button"
+                onClick={() => moveMarket(1)}
+                aria-label="Next market"
+                title="Next market"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-white outline-none transition hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-emerald-300/70"
+              >
+                <ChevronRight size={19} aria-hidden="true" />
+              </button>
+            </div>
 
-            <label className="sr-only" htmlFor="btc-tv-timeframe">Timeframe</label>
-            <select
-              id="btc-tv-timeframe"
-              value={interval}
-              onChange={(event) => setIntervalValue(event.target.value)}
-              className="h-9 rounded-lg border border-white/15 bg-[#1a1d24] px-3 text-xs font-semibold text-white outline-none focus:border-emerald-400"
-            >
+            <div className="flex items-center gap-1 rounded-lg border border-white/15 bg-[#1a1d24] p-1" role="group" aria-label="Timeframe selector">
               {timeframeOptions.map((item) => (
-                <option key={item.value} value={item.value}>
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setIntervalValue(item.value)}
+                  aria-pressed={item.value === interval}
+                  className={`h-8 min-w-12 rounded-md px-2 text-xs font-bold outline-none transition focus:ring-2 focus:ring-emerald-300/70 ${
+                    item.value === interval
+                      ? "bg-emerald-400/25 text-emerald-100"
+                      : "text-white/65 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
                   {item.label}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
 
             <button
               type="button"

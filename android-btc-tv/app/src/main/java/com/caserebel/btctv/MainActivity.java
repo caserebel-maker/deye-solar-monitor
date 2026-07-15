@@ -81,14 +81,7 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-            || keyCode == KeyEvent.KEYCODE_ENTER
-            || keyCode == KeyEvent.KEYCODE_REFRESH
-            || keyCode == KeyEvent.KEYCODE_MENU) {
-            if (webView != null) webView.loadUrl(freshDashboardUrl());
-            return true;
-        }
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
+        if (keyCode == KeyEvent.KEYCODE_REFRESH) {
             if (webView != null) webView.loadUrl(freshDashboardUrl());
             return true;
         }
