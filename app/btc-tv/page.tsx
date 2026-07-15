@@ -48,14 +48,18 @@ const marketOptions = [
   { label: "SPCX · SpaceX", symbol: "NASDAQ:SPCX" },
 ];
 
+type WidgetStatus = "loading" | "ready" | "timeout";
+
 export default function BtcTvPage() {
   const widgetRef = useRef<HTMLDivElement>(null);
+  const autoRetryRef = useRef(0);
   const [clock, setClock] = useState("");
   const [symbol, setSymbol] = useState("BINANCE:BTCUSDT");
   const [interval, setIntervalValue] = useState("D");
   const [rangeIndex, setRangeIndex] = useState(3);
   const [draftRangeIndex, setDraftRangeIndex] = useState(3);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  const [widgetStatus, setWidgetStatus] = useState<WidgetStatus>("loading");
 
   const selectedMarket = marketOptions.find((item) => item.symbol === symbol) ?? marketOptions[0];
   const selectedTimeframe = timeframeOptions.find((item) => item.value === interval) ?? timeframeOptions[2];
@@ -87,6 +91,8 @@ export default function BtcTvPage() {
   );
 
   const refreshChart = () => {
+    autoRetryRef.current = 0;
+    setWidgetStatus("loading");
     setRefreshNonce((value) => value + 1);
   };
 
@@ -103,9 +109,14 @@ export default function BtcTvPage() {
   }, [draftRangeIndex]);
 
   useEffect(() => {
+    autoRetryRef.current = 0;
+  }, [symbol, interval, selectedRange.value]);
+
+  useEffect(() => {
     const target = widgetRef.current;
     if (!target) return;
 
+    setWidgetStatus("loading");
     target.innerHTML = "";
 
     const widget = document.createElement("div");
@@ -119,14 +130,36 @@ export default function BtcTvPage() {
     target.appendChild(widget);
     target.appendChild(script);
 
+    let iframe: HTMLIFrameElement | null = null;
+    let iframeLoaded = false;
+    const markReady = () => {
+      iframeLoaded = true;
+      setWidgetStatus("ready");
+    };
+    const attachIframeListener = () => {
+      const nextIframe = target.querySelector("iframe");
+      if (!nextIframe || nextIframe === iframe) return;
+
+      iframe = nextIframe;
+      iframe.addEventListener("load", markReady, { once: true });
+    };
+    const observer = new MutationObserver(attachIframeListener);
+    observer.observe(target, { childList: true, subtree: true });
+    attachIframeListener();
+
     const retryTimer = window.setTimeout(() => {
-      if (!target.querySelector("iframe")) {
+      if (!iframeLoaded && autoRetryRef.current < 1) {
+        autoRetryRef.current += 1;
         setRefreshNonce((value) => value + 1);
+      } else if (!iframeLoaded) {
+        setWidgetStatus("timeout");
       }
-    }, 30000);
+    }, 12000);
 
     return () => {
       window.clearTimeout(retryTimer);
+      observer.disconnect();
+      iframe?.removeEventListener("load", markReady);
       target.innerHTML = "";
     };
   }, [widgetConfig, refreshNonce]);
@@ -269,8 +302,25 @@ export default function BtcTvPage() {
           </div>
         </nav>
 
-        <section className="min-h-0 flex-1">
+        <section className="relative min-h-0 flex-1">
           <div ref={widgetRef} className="tradingview-widget-container h-full w-full bg-[#0b0d12]" />
+
+          {widgetStatus === "timeout" && (
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0b0d12]/95 p-6 text-center">
+              <div className="max-w-md">
+                <p className="text-base font-semibold text-white">Chart is taking too long to load</p>
+                <p className="mt-2 text-sm text-white/55">TradingView did not respond. Try loading the chart again.</p>
+                <button
+                  type="button"
+                  onClick={refreshChart}
+                  className="mt-5 inline-flex h-11 items-center gap-2 rounded-lg border border-emerald-300/40 bg-emerald-400/15 px-5 text-sm font-bold text-emerald-100 outline-none transition hover:bg-emerald-400/25 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60"
+                >
+                  <RotateCw size={17} aria-hidden="true" />
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
     </main>
