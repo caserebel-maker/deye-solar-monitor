@@ -50,14 +50,18 @@ const marketOptions = [
 
 type WidgetStatus = "loading" | "ready" | "timeout";
 
+const defaultSymbol = "BINANCE:BTCUSDT";
+const defaultInterval = "240";
+const defaultRangeIndex = 3;
+
 export default function BtcTvPage() {
   const widgetRef = useRef<HTMLDivElement>(null);
   const autoRetryRef = useRef(0);
   const [clock, setClock] = useState("");
-  const [symbol, setSymbol] = useState("BINANCE:BTCUSDT");
-  const [interval, setIntervalValue] = useState("D");
-  const [rangeIndex, setRangeIndex] = useState(3);
-  const [draftRangeIndex, setDraftRangeIndex] = useState(3);
+  const [symbol, setSymbol] = useState(defaultSymbol);
+  const [interval, setIntervalValue] = useState(defaultInterval);
+  const [rangeIndex, setRangeIndex] = useState(defaultRangeIndex);
+  const [draftRangeIndex, setDraftRangeIndex] = useState(defaultRangeIndex);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [widgetStatus, setWidgetStatus] = useState<WidgetStatus>("loading");
 
@@ -72,6 +76,9 @@ export default function BtcTvPage() {
       symbol,
       interval,
       range: selectedRange.value,
+      time_scale: {
+        min_bar_spacing: 2.5,
+      },
       timezone: "Asia/Bangkok",
       theme: "dark",
       style: "1",
