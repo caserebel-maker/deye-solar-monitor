@@ -31,7 +31,9 @@ const marketOptions = [
   { label: "AAVEUSDT", symbol: "BINANCE:AAVEUSDT" },
   { label: "NEARUSDT", symbol: "BINANCE:NEARUSDT" },
   { label: "XAUUSD", symbol: "OANDA:XAUUSD" },
+  { label: "DXY", symbol: "TVC:DXY" },
   { label: "SPX", symbol: "SP:SPX" },
+  { label: "SPCX · SpaceX", symbol: "NASDAQ:SPCX" },
 ];
 
 export default function BtcTvPage() {
@@ -39,6 +41,7 @@ export default function BtcTvPage() {
   const [clock, setClock] = useState("");
   const [symbol, setSymbol] = useState("BINANCE:BTCUSDT");
   const [interval, setIntervalValue] = useState("D");
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   const selectedMarket = marketOptions.find((item) => item.symbol === symbol) ?? marketOptions[0];
   const selectedTimeframe = timeframeOptions.find((item) => item.value === interval) ?? timeframeOptions[2];
@@ -67,6 +70,10 @@ export default function BtcTvPage() {
     [symbol, interval]
   );
 
+  const refreshChart = () => {
+    setRefreshNonce((value) => value + 1);
+  };
+
   useEffect(() => {
     const target = widgetRef.current;
     if (!target) return;
@@ -84,10 +91,17 @@ export default function BtcTvPage() {
     target.appendChild(widget);
     target.appendChild(script);
 
+    const retryTimer = window.setTimeout(() => {
+      if (!target.querySelector("iframe")) {
+        setRefreshNonce((value) => value + 1);
+      }
+    }, 30000);
+
     return () => {
+      window.clearTimeout(retryTimer);
       target.innerHTML = "";
     };
-  }, [widgetConfig]);
+  }, [widgetConfig, refreshNonce]);
 
   useEffect(() => {
     const updateClock = () => {
@@ -157,6 +171,14 @@ export default function BtcTvPage() {
                 </option>
               ))}
             </select>
+
+            <button
+              type="button"
+              onClick={refreshChart}
+              className="h-9 rounded-lg border border-emerald-300/35 bg-emerald-400/10 px-3 text-xs font-bold uppercase tracking-wide text-emerald-200 outline-none transition hover:bg-emerald-400/20 focus:border-emerald-200"
+            >
+              Reload
+            </button>
 
             <div className="min-w-24 text-right font-mono text-lg font-semibold tabular-nums text-emerald-300">{clock}</div>
           </div>
