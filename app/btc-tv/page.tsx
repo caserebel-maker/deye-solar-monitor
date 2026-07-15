@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 
 const timeframeOptions = [
   { label: "1H", value: "60" },
   { label: "4H", value: "240" },
   { label: "1D", value: "D" },
   { label: "1W", value: "W" },
+];
+
+const rangeOptions = [
+  { label: "1D", value: "1D" },
+  { label: "5D", value: "5D" },
+  { label: "1M", value: "1M" },
+  { label: "3M", value: "3M" },
+  { label: "6M", value: "6M" },
+  { label: "1Y", value: "1Y" },
+  { label: "5Y", value: "5Y" },
+  { label: "ALL", value: "all" },
 ];
 
 const marketOptions = [
@@ -41,16 +53,20 @@ export default function BtcTvPage() {
   const [clock, setClock] = useState("");
   const [symbol, setSymbol] = useState("BINANCE:BTCUSDT");
   const [interval, setIntervalValue] = useState("D");
+  const [rangeIndex, setRangeIndex] = useState(3);
+  const [draftRangeIndex, setDraftRangeIndex] = useState(3);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
   const selectedMarket = marketOptions.find((item) => item.symbol === symbol) ?? marketOptions[0];
   const selectedTimeframe = timeframeOptions.find((item) => item.value === interval) ?? timeframeOptions[2];
+  const selectedRange = rangeOptions[rangeIndex] ?? rangeOptions[3];
 
   const widgetConfig = useMemo(
     () => ({
       autosize: true,
       symbol,
       interval,
+      range: selectedRange.value,
       timezone: "Asia/Bangkok",
       theme: "dark",
       style: "1",
@@ -67,12 +83,24 @@ export default function BtcTvPage() {
       studies: ["STD;RSI"],
       support_host: "https://www.tradingview.com",
     }),
-    [symbol, interval]
+    [symbol, interval, selectedRange.value]
   );
 
   const refreshChart = () => {
     setRefreshNonce((value) => value + 1);
   };
+
+  const moveRange = (direction: -1 | 1) => {
+    setDraftRangeIndex((value) => Math.min(rangeOptions.length - 1, Math.max(0, value + direction)));
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setRangeIndex(draftRangeIndex);
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [draftRangeIndex]);
 
   useEffect(() => {
     const target = widgetRef.current;
@@ -175,14 +203,67 @@ export default function BtcTvPage() {
             <button
               type="button"
               onClick={refreshChart}
-              className="h-9 rounded-lg border border-emerald-300/35 bg-emerald-400/10 px-3 text-xs font-bold uppercase tracking-wide text-emerald-200 outline-none transition hover:bg-emerald-400/20 focus:border-emerald-200"
+              aria-label="Reload chart"
+              title="Reload chart"
+              className="flex h-9 items-center gap-2 rounded-lg border border-emerald-300/35 bg-emerald-400/10 px-3 text-xs font-bold uppercase tracking-wide text-emerald-200 outline-none transition hover:bg-emerald-400/20 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60"
             >
+              <RotateCw size={15} aria-hidden="true" />
               Reload
             </button>
 
             <div className="min-w-24 text-right font-mono text-lg font-semibold tabular-nums text-emerald-300">{clock}</div>
           </div>
         </header>
+
+        <nav
+          aria-label="Chart range controls"
+          className="flex min-h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-[#0f1218] px-4 py-2"
+        >
+          <span className="hidden shrink-0 text-[11px] font-bold uppercase tracking-[0.18em] text-white/55 sm:block">
+            Graph range
+          </span>
+
+          <button
+            type="button"
+            onClick={() => moveRange(-1)}
+            disabled={draftRangeIndex === 0}
+            aria-label="Show a narrower chart range"
+            title="Narrower range"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-[#1a1d24] text-white outline-none transition hover:bg-white/10 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <ChevronLeft size={21} aria-hidden="true" />
+          </button>
+
+          <input
+            aria-label={`Chart range: ${rangeOptions[draftRangeIndex]?.label ?? selectedRange.label}`}
+            type="range"
+            min="0"
+            max={String(rangeOptions.length - 1)}
+            step="1"
+            value={draftRangeIndex}
+            onChange={(event) => setDraftRangeIndex(Number(event.target.value))}
+            className="h-2 min-w-0 flex-1 cursor-pointer accent-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+          />
+
+          <button
+            type="button"
+            onClick={() => moveRange(1)}
+            disabled={draftRangeIndex === rangeOptions.length - 1}
+            aria-label="Show a wider chart range"
+            title="Wider range"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-[#1a1d24] text-white outline-none transition hover:bg-white/10 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            <ChevronRight size={21} aria-hidden="true" />
+          </button>
+
+          <div className="min-w-14 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-center text-xs font-bold tabular-nums text-emerald-200">
+            {rangeOptions[draftRangeIndex]?.label ?? selectedRange.label}
+          </div>
+
+          <div className="hidden shrink-0 text-[11px] text-white/40 lg:block">
+            Left / right on slider
+          </div>
+        </nav>
 
         <section className="min-h-0 flex-1">
           <div ref={widgetRef} className="tradingview-widget-container h-full w-full bg-[#0b0d12]" />
