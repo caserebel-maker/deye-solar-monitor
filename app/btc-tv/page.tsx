@@ -91,6 +91,7 @@ export default function BtcTvPage() {
       calendar: false,
       details: true,
       hotlist: false,
+      disabled_features: ["use_localstorage_for_settings"],
       watchlist: marketOptions.map((item) => item.symbol),
       studies: ["STD;RSI"],
       support_host: "https://www.tradingview.com",
