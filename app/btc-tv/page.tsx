@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
+import { Bitcoin, ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 
 const timeframeOptions = [
   { label: "1H", value: "60" },
@@ -161,8 +161,12 @@ export default function BtcTvPage() {
       <div className="flex h-full flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#111318] px-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f7931a] text-sm font-black text-white">
-              ₿
+            <div
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-300/60 bg-[#17202c] text-orange-300 shadow-[0_0_16px_rgba(247,147,26,0.28)]"
+              aria-label="Bitcoin"
+              title="Bitcoin"
+            >
+              <Bitcoin size={19} strokeWidth={2.5} aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-sm font-semibold tracking-wide text-white">
