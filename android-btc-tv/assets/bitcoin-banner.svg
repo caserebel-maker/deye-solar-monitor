@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
+  <rect width="320" height="180" rx="18" fill="#0b1220"/>
+  <rect x="5" y="5" width="310" height="170" rx="15" fill="none" stroke="#f7931a" stroke-width="3"/>
+  <circle cx="112" cy="90" r="55" fill="#f7931a"/>
+  <path d="M122 45v10c14 3 21 11 20 22-1 8-5 13-12 16 11 3 17 10 17 20 0 15-10 24-27 27v10h-9v-9h-8v9h-9v-9H89V45h5v-9h9v9h8v-9h9v9h2Zm-20 13v29h14c9 0 14-5 14-14 0-10-6-15-16-15h-12Zm0 42v31h17c11 0 17-5 17-15 0-11-7-16-19-16h-15Z" fill="#0b1220"/>
+  <text x="186" y="82" fill="#f8fafc" font-family="Arial, sans-serif" font-size="27" font-weight="700">BTC</text>
+  <text x="186" y="113" fill="#f7931a" font-family="Arial, sans-serif" font-size="21" font-weight="700">CHART</text>
+  <text x="186" y="138" fill="#94a3b8" font-family="Arial, sans-serif" font-size="9" letter-spacing="1">MARKET VIEW</text>
+</svg>
