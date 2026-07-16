@@ -787,6 +787,8 @@ function CctvCard({
           streamLabel={streamLabel}
           isMuted={isMuted}
           onMuteChange={setIsMuted}
+          showPtz={hasPtz && lens === "lens_b"}
+          cameraIp={cameraIp}
         />
       )}
     </section>
@@ -802,6 +804,8 @@ function CctvFullscreenModal({
   streamLabel,
   isMuted,
   onMuteChange,
+  showPtz,
+  cameraIp,
 }: {
   open: boolean;
   onClose: () => void;
@@ -811,6 +815,8 @@ function CctvFullscreenModal({
   streamLabel: string;
   isMuted: boolean;
   onMuteChange: (muted: boolean) => void;
+  showPtz: boolean;
+  cameraIp?: string;
 }) {
   const [mounted, setMounted] = useState(false);
 
@@ -870,6 +876,7 @@ function CctvFullscreenModal({
             fullscreen
           />
         </div>
+        {showPtz && <CctvPtzControls cameraIp={cameraIp} />}
       </div>
     </div>,
     document.body,
