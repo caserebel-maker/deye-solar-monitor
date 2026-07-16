@@ -587,13 +587,15 @@ select {
 
 /* Keep D-pad focus visible and immediate on the TV chart page. */
 .tv-remote-ui button,
-.tv-remote-ui input {
+.tv-remote-ui input,
+.tv-remote-ui select {
   scroll-behavior: auto;
   transition: none !important;
 }
 
 .tv-remote-ui button:focus,
-.tv-remote-ui input:focus {
+.tv-remote-ui input:focus,
+.tv-remote-ui select:focus {
   outline: 3px solid rgba(110, 231, 183, 0.98) !important;
   outline-offset: 3px;
   box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.24) !important;

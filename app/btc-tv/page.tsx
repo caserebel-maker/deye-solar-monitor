@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Bitcoin, ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from "react";
+import { Bitcoin, ChevronDown, ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 
 const timeframeOptions = [
   { label: "1H", value: "60" },
@@ -56,7 +56,7 @@ const defaultRangeIndex = 3;
 const tradingViewFrameId = "tv-embed-widget-advanced-chart";
 
 export default function BtcTvPage() {
-  const firstControlRef = useRef<HTMLButtonElement>(null);
+  const firstControlRef = useRef<HTMLSelectElement>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
   const autoRetryRef = useRef(0);
   const [clock, setClock] = useState("");
@@ -66,9 +66,9 @@ export default function BtcTvPage() {
   const [draftRangeIndex, setDraftRangeIndex] = useState(defaultRangeIndex);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [widgetStatus, setWidgetStatus] = useState<WidgetStatus>("loading");
+  const [focusLabel, setFocusLabel] = useState("Market dropdown");
 
   const selectedMarket = marketOptions.find((item) => item.symbol === symbol) ?? marketOptions[0];
-  const selectedMarketIndex = Math.max(0, marketOptions.findIndex((item) => item.symbol === symbol));
   const selectedTimeframe = timeframeOptions.find((item) => item.value === interval) ?? timeframeOptions[2];
   const selectedRange = rangeOptions[rangeIndex] ?? rangeOptions[3];
 
@@ -113,11 +113,6 @@ export default function BtcTvPage() {
     setDraftRangeIndex((value) => Math.min(rangeOptions.length - 1, Math.max(0, value + direction)));
   };
 
-  const moveMarket = (direction: -1 | 1) => {
-    const nextIndex = (selectedMarketIndex + direction + marketOptions.length) % marketOptions.length;
-    setSymbol(marketOptions[nextIndex].symbol);
-  };
-
   const focusRemoteControl = (group: "header" | "range", direction: -1 | 1) => {
     const controls = Array.from(
       document.querySelectorAll<HTMLElement>(`[data-tv-control-group="${group}"]`)
@@ -132,15 +127,16 @@ export default function BtcTvPage() {
   const handleRemoteKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     const activeElement = document.activeElement as HTMLElement | null;
     const isRangeInput = activeElement instanceof HTMLInputElement && activeElement.type === "range";
+    const isMarketSelect = activeElement instanceof HTMLSelectElement;
     const activeGroup = activeElement?.dataset.tvControlGroup as "header" | "range" | undefined;
 
-    if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !isRangeInput && activeGroup) {
+    if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !isRangeInput && !isMarketSelect && activeGroup) {
       event.preventDefault();
       focusRemoteControl(activeGroup, event.key === "ArrowLeft" ? -1 : 1);
       return;
     }
 
-    if (event.key === "ArrowDown" && activeGroup === "header") {
+    if (event.key === "ArrowDown" && activeGroup === "header" && !isMarketSelect) {
       event.preventDefault();
       focusRemoteControl("range", 1);
       return;
@@ -150,6 +146,11 @@ export default function BtcTvPage() {
       event.preventDefault();
       focusRemoteControl("header", 1);
     }
+  };
+
+  const handleRemoteFocus = (event: FocusEvent<HTMLElement>) => {
+    const label = event.target.dataset.tvControlLabel;
+    if (label) setFocusLabel(label);
   };
 
   useEffect(() => {
@@ -286,6 +287,7 @@ export default function BtcTvPage() {
     <main
       className="tv-remote-ui h-screen w-screen overflow-hidden bg-[#0b0d12] text-white"
       onKeyDown={handleRemoteKeyDown}
+      onFocusCapture={handleRemoteFocus}
     >
       <div className="flex h-full flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#111318] px-4">
@@ -305,31 +307,24 @@ export default function BtcTvPage() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg border border-white/15 bg-[#1a1d24] p-1" role="group" aria-label="Market selector">
-              <button
-                type="button"
+            <div className="relative flex items-center rounded-lg border border-white/15 bg-[#1a1d24]">
+              <select
                 ref={firstControlRef}
-                onClick={() => moveMarket(-1)}
-                aria-label="Previous market"
-                title="Previous market"
+                value={symbol}
+                onChange={(event) => setSymbol(event.target.value)}
+                aria-label="Select market"
+                title="Select market"
                 data-tv-control-group="header"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-white outline-none transition hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-emerald-300/70"
+                data-tv-control-label="Market dropdown"
+                className="h-10 min-w-36 appearance-none rounded-lg bg-transparent px-3 pr-9 text-sm font-bold text-white outline-none"
               >
-                <ChevronLeft size={19} aria-hidden="true" />
-              </button>
-              <div className="min-w-28 px-2 text-center text-xs font-bold text-white" aria-live="polite">
-                {selectedMarket.label}
-              </div>
-              <button
-                type="button"
-                onClick={() => moveMarket(1)}
-                aria-label="Next market"
-                title="Next market"
-                data-tv-control-group="header"
-                className="flex h-8 w-8 items-center justify-center rounded-md text-white outline-none transition hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-emerald-300/70"
-              >
-                <ChevronRight size={19} aria-hidden="true" />
-              </button>
+                {marketOptions.map((item) => (
+                  <option key={item.symbol} value={item.symbol} className="bg-[#151820] text-white">
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 text-white/70" size={17} aria-hidden="true" />
             </div>
 
             <div className="flex items-center gap-1 rounded-lg border border-white/15 bg-[#1a1d24] p-1" role="group" aria-label="Timeframe selector">
@@ -340,6 +335,7 @@ export default function BtcTvPage() {
                   onClick={() => setIntervalValue(item.value)}
                   aria-pressed={item.value === interval}
                   data-tv-control-group="header"
+                  data-tv-control-label={`Timeframe ${item.label}`}
                   className={`h-8 min-w-12 rounded-md px-2 text-xs font-bold outline-none transition focus:ring-2 focus:ring-emerald-300/70 ${
                     item.value === interval
                       ? "bg-emerald-400/25 text-emerald-100"
@@ -357,11 +353,21 @@ export default function BtcTvPage() {
               aria-label="Reload chart"
               title="Reload chart"
               data-tv-control-group="header"
+              data-tv-control-label="Reload chart"
               className="flex h-9 items-center gap-2 rounded-lg border border-emerald-300/35 bg-emerald-400/10 px-3 text-xs font-bold uppercase tracking-wide text-emerald-200 outline-none transition hover:bg-emerald-400/20 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60"
             >
               <RotateCw size={15} aria-hidden="true" />
               Reload
             </button>
+
+            <div
+              className="hidden min-w-32 max-w-40 items-center gap-2 rounded-lg border border-emerald-300/30 bg-emerald-400/10 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-emerald-100 md:flex"
+              aria-live="polite"
+              aria-label={`Current focus: ${focusLabel}`}
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(110,231,183,0.9)]" aria-hidden="true" />
+              <span className="truncate">Focus: {focusLabel}</span>
+            </div>
 
             <div className="min-w-24 text-right font-mono text-lg font-semibold tabular-nums text-emerald-300">{clock}</div>
           </div>
@@ -382,6 +388,7 @@ export default function BtcTvPage() {
             aria-label="Show a narrower chart range"
             title="Narrower range"
             data-tv-control-group="range"
+            data-tv-control-label="Graph range narrower"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-[#1a1d24] text-white outline-none transition hover:bg-white/10 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-35"
           >
             <ChevronLeft size={21} aria-hidden="true" />
@@ -396,6 +403,7 @@ export default function BtcTvPage() {
             value={draftRangeIndex}
             onChange={(event) => setDraftRangeIndex(Number(event.target.value))}
             data-tv-control-group="range"
+            data-tv-control-label={`Graph range ${rangeOptions[draftRangeIndex]?.label ?? selectedRange.label}`}
             className="h-2 min-w-0 flex-1 cursor-pointer accent-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
           />
 
@@ -406,6 +414,7 @@ export default function BtcTvPage() {
             aria-label="Show a wider chart range"
             title="Wider range"
             data-tv-control-group="range"
+            data-tv-control-label="Graph range wider"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-[#1a1d24] text-white outline-none transition hover:bg-white/10 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-35"
           >
             <ChevronRight size={21} aria-hidden="true" />
@@ -432,6 +441,7 @@ export default function BtcTvPage() {
                   type="button"
                   onClick={refreshChart}
                   data-tv-control-group="range"
+                  data-tv-control-label="Reload chart"
                   className="mt-5 inline-flex h-11 items-center gap-2 rounded-lg border border-emerald-300/40 bg-emerald-400/15 px-5 text-sm font-bold text-emerald-100 outline-none transition hover:bg-emerald-400/25 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60"
                 >
                   <RotateCw size={17} aria-hidden="true" />
