@@ -52,6 +52,7 @@ import {
   Thermometer,
   Volume2,
   VolumeX,
+  X,
   Zap,
 } from "lucide-react";
 import type { Alarm, SolarAlarms, SolarHistory, SolarOverview } from "@/lib/deye-api";
@@ -637,6 +638,7 @@ function CctvCard({
   const [restartCount, setRestartCount] = useState(0);
   const [restarting, setRestarting] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Prefer go2rtc's fragmented-MP4 endpoint over HLS: HLS module wedges
   // intermittently while the same producer keeps streaming bytes on
@@ -680,6 +682,9 @@ function CctvCard({
     }
   }, [baseUrl, restarting]);
 
+  const streamLabel = hasLensToggle ? (lens === "lens_b" ? "Lens B · PTZ" : "Lens A · Fixed") : "Live";
+  const lensDescription = hasLensToggle ? (lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed") : "Single Lens Feed";
+
   return (
     <section className={embedded ? "flex flex-col" : "glass premium-panel flex flex-col rounded-3xl p-5"}>
       <div className="flex items-center justify-between">
@@ -688,7 +693,7 @@ function CctvCard({
           <h2 className="mt-1 text-xl font-semibold text-slate-950">{title}</h2>
           <p className="mt-1 text-[11px] font-medium text-slate-500">
             {subtitle ? `${subtitle} · ` : ""}
-            {hasLensToggle ? (lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed") : "Single Lens Feed"}
+            {lensDescription}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -738,14 +743,17 @@ function CctvCard({
           </div>
         </div>
       </div>
-      <div className="mt-4 flex aspect-video w-full flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl">
+      <div
+        className="group relative mt-4 flex aspect-video w-full flex-col overflow-hidden rounded-3xl border border-white/55 bg-slate-950/75 shadow-2xl"
+        onDoubleClick={() => hlsUrl && setIsExpanded(true)}
+      >
         {hlsUrl ? (
           <CctvLivePlayer
             key={`${restartCount}-${lens}`}
             src={hlsUrl}
             isMuted={isMuted}
             onMuteChange={setIsMuted}
-            label={hasLensToggle ? (lens === "lens_b" ? "Lens B · PTZ" : "Lens A · Fixed") : "Live"}
+            label={streamLabel}
           />
         ) : (
           <CctvPlaceholder
@@ -753,9 +761,109 @@ function CctvCard({
             detail={`Set ${envName} in env. See docs/CCTV_SETUP.md`}
           />
         )}
+        {hlsUrl && (
+          <button
+            type="button"
+            aria-label={`ขยาย ${title} เต็มจอ`}
+            onClick={() => setIsExpanded(true)}
+            className="absolute bottom-3 right-3 z-20 inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-slate-950/75 px-3 py-2 text-xs font-semibold text-white shadow-xl backdrop-blur transition hover:border-cyan-300/45 hover:bg-slate-900/90 focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
+            title="ขยายเต็มจอ"
+          >
+            <Maximize className="h-4 w-4" />
+            ขยาย
+          </button>
+        )}
       </div>
       {hlsUrl && hasPtz && lens === "lens_b" && <CctvPtzControls cameraIp={cameraIp} />}
+      {hlsUrl && (
+        <CctvFullscreenModal
+          key={`modal-${restartCount}-${lens}`}
+          open={isExpanded}
+          onClose={() => setIsExpanded(false)}
+          title={title}
+          subtitle={subtitle ? `${subtitle} · ${lensDescription}` : lensDescription}
+          src={hlsUrl}
+          streamLabel={streamLabel}
+          isMuted={isMuted}
+          onMuteChange={setIsMuted}
+        />
+      )}
     </section>
+  );
+}
+
+function CctvFullscreenModal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  src,
+  streamLabel,
+  isMuted,
+  onMuteChange,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle: string;
+  src: string;
+  streamLabel: string;
+  isMuted: boolean;
+  onMuteChange: (muted: boolean) => void;
+}) {
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[120] bg-slate-950/95 p-3 text-white backdrop-blur-2xl sm:p-5"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${title} fullscreen camera view`}
+    >
+      <div className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-white/15 bg-slate-950 shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">Expanded Camera</p>
+            <h2 className="mt-1 truncate text-lg font-semibold text-white sm:text-2xl">{title}</h2>
+            <p className="mt-1 truncate text-xs text-white/55">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-white/8 text-white/80 transition hover:bg-white/14 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
+            aria-label="ปิดภาพเต็มจอ"
+            title="ปิด"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 bg-slate-950">
+          <CctvLivePlayer
+            src={src}
+            isMuted={isMuted}
+            onMuteChange={onMuteChange}
+            label={streamLabel}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1540,15 +1648,32 @@ export default function DashboardPage() {
           </div>
           <div className="glass premium-panel flex flex-col rounded-3xl p-5 lg:max-h-[calc(100vh-10rem)]">
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-6">
+              {process.env.NEXT_PUBLIC_CCTV_HLS_URL_3 && (
+                <>
+                  <div className="shrink-0">
+                    <CctvCard
+                      title="Solar Camera 1"
+                      subtitle="Tapo C545d"
+                      baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_3}
+                      hasLensToggle={true}
+                      hasPtz={true}
+                      envName="NEXT_PUBLIC_CCTV_HLS_URL_3"
+                      cameraIp={process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_3}
+                      embedded={true}
+                    />
+                  </div>
+                  <hr className="border-white/10 shrink-0" />
+                </>
+              )}
               <div className="shrink-0">
                 <CctvCard
-                  title="Solar Camera"
+                  title={process.env.NEXT_PUBLIC_CCTV_HLS_URL_3 ? "Solar Camera 2" : "Solar Camera"}
                   subtitle="Tapo C545d"
                   baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL}
                   hasLensToggle={true}
                   hasPtz={true}
                   envName="NEXT_PUBLIC_CCTV_HLS_URL"
-                  cameraIp="192.168.1.109"
+                  cameraIp={process.env.NEXT_PUBLIC_CCTV_CAMERA_IP ?? "192.168.1.109"}
                   embedded={true}
                 />
               </div>
@@ -1561,7 +1686,7 @@ export default function DashboardPage() {
                   hasLensToggle={true}
                   hasPtz={true}
                   envName="NEXT_PUBLIC_CCTV_HLS_URL_2"
-                  cameraIp="192.168.1.106"
+                  cameraIp={process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_2 ?? "192.168.1.106"}
                   embedded={true}
                 />
               </div>

@@ -16,7 +16,7 @@ Mac mini ที่บ้าน
 https://<machine>.<tailnet>.ts.net/api/stream.m3u8?src=tapo
    │
    ▼
-Vercel app อ่าน NEXT_PUBLIC_CCTV_HLS_URL
+Vercel app อ่าน NEXT_PUBLIC_CCTV_HLS_URL / _2 / _3
    │
    ▼
 <video> + hls.js เล่นในการ์ด
@@ -203,13 +203,26 @@ https://macmini.YOUR-TAILNET.ts.net/api/stream.m3u8?src=tapo
    - **Key:** `NEXT_PUBLIC_CCTV_HLS_URL`
    - **Value:** URL จากด้านบน
    - **Environments:** Production + Preview + Development
-4. กด **Save**
-5. **Deployments** → กดเมนู ⋮ ของ deployment ล่าสุด → **Redeploy** (ต้อง redeploy เพราะ `NEXT_PUBLIC_*` ต้อง bake ตอน build)
+4. ถ้ามีกล้องเพิ่ม ให้เพิ่ม URL แยก:
+   - `NEXT_PUBLIC_CCTV_HLS_URL` = กล้องหลักเดิม
+   - `NEXT_PUBLIC_CCTV_HLS_URL_2` = กล้อง DLC / ตัวที่สอง
+   - `NEXT_PUBLIC_CCTV_HLS_URL_3` = กล้องใหม่ที่จะขึ้นเป็นใบแรก
+5. ถ้าต้องใช้ PTZ ให้ใส่ IP LAN ของกล้องด้วย:
+   - `NEXT_PUBLIC_CCTV_CAMERA_IP`
+   - `NEXT_PUBLIC_CCTV_CAMERA_IP_2`
+   - `NEXT_PUBLIC_CCTV_CAMERA_IP_3`
+6. กด **Save**
+7. **Deployments** → กดเมนู ⋮ ของ deployment ล่าสุด → **Redeploy** (ต้อง redeploy เพราะ `NEXT_PUBLIC_*` ต้อง bake ตอน build)
 
 **ใส่ใน .env.local (สำหรับ dev เครื่องตัวเอง):**
 
 ```bash
 NEXT_PUBLIC_CCTV_HLS_URL=https://macmini.YOUR-TAILNET.ts.net/api/stream.m3u8?src=tapo
+NEXT_PUBLIC_CCTV_HLS_URL_2=https://macmini.YOUR-TAILNET.ts.net/api/stream.m3u8?src=tapo_2
+NEXT_PUBLIC_CCTV_HLS_URL_3=https://macmini.YOUR-TAILNET.ts.net/api/stream.m3u8?src=tapo_3
+NEXT_PUBLIC_CCTV_CAMERA_IP=192.168.1.109
+NEXT_PUBLIC_CCTV_CAMERA_IP_2=192.168.1.106
+NEXT_PUBLIC_CCTV_CAMERA_IP_3=192.168.1.xxx
 ```
 
 ---
