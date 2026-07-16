@@ -584,3 +584,17 @@ select {
 .light-dashboard .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.4);
 }
+
+/* Keep D-pad focus visible and immediate on the TV chart page. */
+.tv-remote-ui button,
+.tv-remote-ui input {
+  scroll-behavior: auto;
+  transition: none !important;
+}
+
+.tv-remote-ui button:focus,
+.tv-remote-ui input:focus {
+  outline: 3px solid rgba(110, 231, 183, 0.98) !important;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.24) !important;
+}

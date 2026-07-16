@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Bitcoin, ChevronLeft, ChevronRight, RotateCw } from "lucide-react";
 
 const timeframeOptions = [
@@ -56,6 +56,7 @@ const defaultRangeIndex = 3;
 const tradingViewFrameId = "tv-embed-widget-advanced-chart";
 
 export default function BtcTvPage() {
+  const firstControlRef = useRef<HTMLButtonElement>(null);
   const widgetRef = useRef<HTMLDivElement>(null);
   const autoRetryRef = useRef(0);
   const [clock, setClock] = useState("");
@@ -116,6 +117,48 @@ export default function BtcTvPage() {
     const nextIndex = (selectedMarketIndex + direction + marketOptions.length) % marketOptions.length;
     setSymbol(marketOptions[nextIndex].symbol);
   };
+
+  const focusRemoteControl = (group: "header" | "range", direction: -1 | 1) => {
+    const controls = Array.from(
+      document.querySelectorAll<HTMLElement>(`[data-tv-control-group="${group}"]`)
+    ).filter((control) => !control.hasAttribute("disabled") && control.offsetParent !== null);
+    if (controls.length === 0) return;
+
+    const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
+    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + direction + controls.length) % controls.length;
+    controls[nextIndex]?.focus({ preventScroll: true });
+  };
+
+  const handleRemoteKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const activeElement = document.activeElement as HTMLElement | null;
+    const isRangeInput = activeElement instanceof HTMLInputElement && activeElement.type === "range";
+    const activeGroup = activeElement?.dataset.tvControlGroup as "header" | "range" | undefined;
+
+    if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !isRangeInput && activeGroup) {
+      event.preventDefault();
+      focusRemoteControl(activeGroup, event.key === "ArrowLeft" ? -1 : 1);
+      return;
+    }
+
+    if (event.key === "ArrowDown" && activeGroup === "header") {
+      event.preventDefault();
+      focusRemoteControl("range", 1);
+      return;
+    }
+
+    if (event.key === "ArrowUp" && activeGroup === "range") {
+      event.preventDefault();
+      focusRemoteControl("header", 1);
+    }
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      firstControlRef.current?.focus({ preventScroll: true });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -178,6 +221,7 @@ export default function BtcTvPage() {
 
       iframe = nextIframe;
       iframe.id = tradingViewFrameId;
+      iframe.tabIndex = -1;
       iframe.addEventListener("load", markReady, { once: true });
       window.setTimeout(sendChartDefaults, 150);
       window.setTimeout(sendChartDefaults, 800);
@@ -239,7 +283,10 @@ export default function BtcTvPage() {
   }, []);
 
   return (
-    <main className="h-screen w-screen overflow-hidden bg-[#0b0d12] text-white">
+    <main
+      className="tv-remote-ui h-screen w-screen overflow-hidden bg-[#0b0d12] text-white"
+      onKeyDown={handleRemoteKeyDown}
+    >
       <div className="flex h-full flex-col">
         <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-[#111318] px-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -261,9 +308,11 @@ export default function BtcTvPage() {
             <div className="flex items-center gap-1 rounded-lg border border-white/15 bg-[#1a1d24] p-1" role="group" aria-label="Market selector">
               <button
                 type="button"
+                ref={firstControlRef}
                 onClick={() => moveMarket(-1)}
                 aria-label="Previous market"
                 title="Previous market"
+                data-tv-control-group="header"
                 className="flex h-8 w-8 items-center justify-center rounded-md text-white outline-none transition hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-emerald-300/70"
               >
                 <ChevronLeft size={19} aria-hidden="true" />
@@ -276,6 +325,7 @@ export default function BtcTvPage() {
                 onClick={() => moveMarket(1)}
                 aria-label="Next market"
                 title="Next market"
+                data-tv-control-group="header"
                 className="flex h-8 w-8 items-center justify-center rounded-md text-white outline-none transition hover:bg-white/10 focus:bg-white/10 focus:ring-2 focus:ring-emerald-300/70"
               >
                 <ChevronRight size={19} aria-hidden="true" />
@@ -289,6 +339,7 @@ export default function BtcTvPage() {
                   type="button"
                   onClick={() => setIntervalValue(item.value)}
                   aria-pressed={item.value === interval}
+                  data-tv-control-group="header"
                   className={`h-8 min-w-12 rounded-md px-2 text-xs font-bold outline-none transition focus:ring-2 focus:ring-emerald-300/70 ${
                     item.value === interval
                       ? "bg-emerald-400/25 text-emerald-100"
@@ -305,6 +356,7 @@ export default function BtcTvPage() {
               onClick={refreshChart}
               aria-label="Reload chart"
               title="Reload chart"
+              data-tv-control-group="header"
               className="flex h-9 items-center gap-2 rounded-lg border border-emerald-300/35 bg-emerald-400/10 px-3 text-xs font-bold uppercase tracking-wide text-emerald-200 outline-none transition hover:bg-emerald-400/20 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60"
             >
               <RotateCw size={15} aria-hidden="true" />
@@ -329,6 +381,7 @@ export default function BtcTvPage() {
             disabled={draftRangeIndex === 0}
             aria-label="Show a narrower chart range"
             title="Narrower range"
+            data-tv-control-group="range"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-[#1a1d24] text-white outline-none transition hover:bg-white/10 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-35"
           >
             <ChevronLeft size={21} aria-hidden="true" />
@@ -342,6 +395,7 @@ export default function BtcTvPage() {
             step="1"
             value={draftRangeIndex}
             onChange={(event) => setDraftRangeIndex(Number(event.target.value))}
+            data-tv-control-group="range"
             className="h-2 min-w-0 flex-1 cursor-pointer accent-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
           />
 
@@ -351,6 +405,7 @@ export default function BtcTvPage() {
             disabled={draftRangeIndex === rangeOptions.length - 1}
             aria-label="Show a wider chart range"
             title="Wider range"
+            data-tv-control-group="range"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-[#1a1d24] text-white outline-none transition hover:bg-white/10 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60 disabled:cursor-not-allowed disabled:opacity-35"
           >
             <ChevronRight size={21} aria-hidden="true" />
@@ -376,6 +431,7 @@ export default function BtcTvPage() {
                 <button
                   type="button"
                   onClick={refreshChart}
+                  data-tv-control-group="range"
                   className="mt-5 inline-flex h-11 items-center gap-2 rounded-lg border border-emerald-300/40 bg-emerald-400/15 px-5 text-sm font-bold text-emerald-100 outline-none transition hover:bg-emerald-400/25 focus:border-emerald-200 focus:ring-2 focus:ring-emerald-300/60"
                 >
                   <RotateCw size={17} aria-hidden="true" />
