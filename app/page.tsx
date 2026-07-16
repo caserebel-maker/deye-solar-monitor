@@ -1,6 +1,7 @@
 "use client";
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Bar,
   BarChart,
@@ -811,8 +812,14 @@ function CctvFullscreenModal({
   isMuted: boolean;
   onMuteChange: (muted: boolean) => void;
 }) {
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    if (!open) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !mounted) return;
 
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -826,18 +833,18 @@ function CctvFullscreenModal({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, onClose]);
+  }, [open, mounted, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] bg-slate-950/95 p-3 text-white backdrop-blur-2xl sm:p-5"
+      className="fixed inset-0 z-[9999] h-screen w-screen bg-slate-950 text-white"
       role="dialog"
       aria-modal="true"
       aria-label={`${title} fullscreen camera view`}
     >
-      <div className="flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-white/15 bg-slate-950 shadow-2xl">
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950">
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">Expanded Camera</p>
@@ -863,7 +870,8 @@ function CctvFullscreenModal({
           />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
