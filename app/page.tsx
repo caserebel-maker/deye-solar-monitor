@@ -839,12 +839,12 @@ function CctvFullscreenModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] h-screen w-screen bg-slate-950 text-white"
+      className="fixed inset-0 z-[9999] h-screen w-screen overflow-auto bg-slate-950/95 p-2 text-white backdrop-blur-xl sm:p-4 lg:p-8"
       role="dialog"
       aria-modal="true"
       aria-label={`${title} fullscreen camera view`}
     >
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950">
+      <div className="mx-auto flex h-full min-h-full w-full max-w-[1900px] flex-col overflow-hidden rounded-2xl border border-white/15 bg-slate-950 shadow-2xl sm:rounded-3xl">
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-white/[0.03] px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">Expanded Camera</p>
@@ -867,6 +867,7 @@ function CctvFullscreenModal({
             isMuted={isMuted}
             onMuteChange={onMuteChange}
             label={streamLabel}
+            fullscreen
           />
         </div>
       </div>
@@ -970,11 +971,13 @@ function CctvLivePlayer({
   label: streamLabel = "Live",
   isMuted,
   onMuteChange,
+  fullscreen = false,
 }: {
   src: string;
   label?: string;
   isMuted: boolean;
   onMuteChange: (muted: boolean) => void;
+  fullscreen?: boolean;
 }) {
   // Play the live fragmented MP4 directly. The iframe-into-stream.html
   // approach (commit 509337a) needs go2rtc's <video-stream> web
@@ -1141,7 +1144,7 @@ function CctvLivePlayer({
         </span>
         <span>fMP4</span>
       </div>
-      <div className="relative flex flex-1 items-center justify-center bg-slate-950">
+      <div className={`relative flex min-h-0 flex-1 items-center justify-center bg-slate-950 ${fullscreen ? "overflow-hidden px-2 py-2 sm:px-8 sm:py-6 lg:px-12" : ""}`}>
         <video
           ref={videoRef}
           autoPlay
@@ -1152,7 +1155,7 @@ function CctvLivePlayer({
             const video = videoRef.current;
             if (video) onMuteChange(video.muted);
           }}
-          className="h-full w-full bg-black object-contain"
+          className={fullscreen ? "h-auto w-auto max-h-full max-w-full object-contain" : "h-full w-full bg-black object-contain"}
         />
         {status === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 px-4 text-center">
