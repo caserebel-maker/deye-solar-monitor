@@ -1,4 +1,4 @@
-package com.caserebel.btctv;
+package com.caserebel.btccharttv;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;

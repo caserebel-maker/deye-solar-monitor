@@ -53,6 +53,7 @@ type WidgetStatus = "loading" | "ready" | "timeout";
 const defaultSymbol = "BINANCE:BTCUSDT";
 const defaultInterval = "240";
 const defaultRangeIndex = 3;
+const tradingViewFrameId = "tv-embed-widget-advanced-chart";
 
 export default function BtcTvPage() {
   const widgetRef = useRef<HTMLDivElement>(null);
@@ -78,6 +79,7 @@ export default function BtcTvPage() {
       range: selectedRange.value,
       time_scale: {
         min_bar_spacing: 2.5,
+        right_offset: 12,
       },
       timezone: "Asia/Bangkok",
       theme: "dark",
@@ -92,6 +94,7 @@ export default function BtcTvPage() {
       details: true,
       hotlist: false,
       disabled_features: ["use_localstorage_for_settings"],
+      id: tradingViewFrameId,
       watchlist: marketOptions.map((item) => item.symbol),
       studies: ["STD;RSI"],
       support_host: "https://www.tradingview.com",
@@ -146,17 +149,48 @@ export default function BtcTvPage() {
 
     let iframe: HTMLIFrameElement | null = null;
     let iframeLoaded = false;
+    const sendChartDefaults = () => {
+      if (!iframe?.contentWindow) return;
+
+      iframe.contentWindow.postMessage(
+        {
+          name: "set-interval",
+          data: { interval },
+        },
+        "*"
+      );
+      iframe.contentWindow.postMessage(
+        {
+          name: "set-symbol",
+          data: { symbol },
+        },
+        "*"
+      );
+    };
     const markReady = () => {
       iframeLoaded = true;
       setWidgetStatus("ready");
+      sendChartDefaults();
     };
     const attachIframeListener = () => {
       const nextIframe = target.querySelector("iframe");
       if (!nextIframe || nextIframe === iframe) return;
 
       iframe = nextIframe;
+      iframe.id = tradingViewFrameId;
       iframe.addEventListener("load", markReady, { once: true });
+      window.setTimeout(sendChartDefaults, 150);
+      window.setTimeout(sendChartDefaults, 800);
+      window.setTimeout(sendChartDefaults, 1600);
     };
+    const handleWidgetMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data?.name !== "tv-widget-load" && data?.name !== "tv-widget-ready") return;
+      if (data.frameElementId && data.frameElementId !== tradingViewFrameId) return;
+      attachIframeListener();
+      sendChartDefaults();
+    };
+    window.addEventListener("message", handleWidgetMessage);
     const observer = new MutationObserver(attachIframeListener);
     observer.observe(target, { childList: true, subtree: true });
     attachIframeListener();
@@ -173,10 +207,11 @@ export default function BtcTvPage() {
     return () => {
       window.clearTimeout(retryTimer);
       observer.disconnect();
+      window.removeEventListener("message", handleWidgetMessage);
       iframe?.removeEventListener("load", markReady);
       target.innerHTML = "";
     };
-  }, [widgetConfig, refreshNonce]);
+  }, [interval, refreshNonce, symbol, widgetConfig]);
 
   useEffect(() => {
     const updateClock = () => {
