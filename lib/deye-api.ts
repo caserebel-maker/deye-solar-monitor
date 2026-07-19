@@ -41,6 +41,32 @@ export type SolarHistory = {
   power: HistoryPoint[];
 };
 
+export type EnergySummaryPeriod = {
+  period: string;
+  label: string;
+  productionKwh: number;
+  consumptionKwh: number;
+  days: number;
+};
+
+export type SolarEnergySummary = {
+  source: DataSource;
+  lastUpdated: string;
+  coverageStart: string | null;
+  coverageEnd: string | null;
+  current: {
+    today: EnergySummaryPeriod | null;
+    week: EnergySummaryPeriod | null;
+    month: EnergySummaryPeriod | null;
+    year: EnergySummaryPeriod | null;
+  };
+  daily: EnergySummaryPeriod[];
+  weekly: EnergySummaryPeriod[];
+  monthly: EnergySummaryPeriod[];
+  yearly: EnergySummaryPeriod[];
+  error?: string;
+};
+
 export type Alarm = {
   id: string;
   level: "info" | "warning" | "error";
@@ -314,6 +340,20 @@ export function mockHistory(): SolarHistory {
   };
 }
 
+function emptyEnergySummary(source: DataSource): SolarEnergySummary {
+  return {
+    source,
+    lastUpdated: nowIso(),
+    coverageStart: null,
+    coverageEnd: null,
+    current: { today: null, week: null, month: null, year: null },
+    daily: [],
+    weekly: [],
+    monthly: [],
+    yearly: [],
+  };
+}
+
 export function mockAlarms(): SolarAlarms {
   return {
     source: "mock",
@@ -351,6 +391,145 @@ function toUnixSeconds(date: Date) {
 
 function startOfLocalDay(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function stationDateKey(item: DeyeStationDataItem) {
+  if (item.year && item.month && item.day) {
+    return `${item.year}-${String(item.month).padStart(2, "0")}-${String(item.day).padStart(2, "0")}`;
+  }
+
+  if (item.timeStamp) {
+    return dateString(new Date(parseDeyeDate(item.timeStamp)));
+  }
+
+  return null;
+}
+
+function startOfWeekKey(dateKey: string) {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  const day = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() + (day === 0 ? -6 : 1 - day));
+  return dateString(date);
+}
+
+function labelDate(dateKey: string) {
+  return new Date(`${dateKey}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
+function labelMonth(period: string) {
+  return new Date(`${period}-01T00:00:00Z`).toLocaleDateString("en-GB", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function labelWeek(startKey: string) {
+  const start = new Date(`${startKey}T00:00:00Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  return `${labelDate(startKey)} - ${labelDate(dateString(end))}`;
+}
+
+type EnergyBucket = { productionKwh: number; consumptionKwh: number; days: number };
+
+function addEnergyBucket(map: Map<string, EnergyBucket>, key: string, productionKwh: number, consumptionKwh: number, days = 1) {
+  const current = map.get(key) ?? { productionKwh: 0, consumptionKwh: 0, days: 0 };
+  current.productionKwh += productionKwh;
+  current.consumptionKwh += consumptionKwh;
+  current.days += days;
+  map.set(key, current);
+}
+
+function bucketToPeriod(period: string, bucket: EnergyBucket, label: string): EnergySummaryPeriod {
+  return {
+    period,
+    label,
+    productionKwh: Number(bucket.productionKwh.toFixed(2)),
+    consumptionKwh: Number(bucket.consumptionKwh.toFixed(2)),
+    days: bucket.days,
+  };
+}
+
+function buildEnergySummary(items: DeyeStationDataItem[], source: DataSource): SolarEnergySummary {
+  const dailyBuckets = new Map<string, EnergyBucket>();
+
+  for (const item of items) {
+    const dateKey = stationDateKey(item);
+    if (!dateKey) continue;
+    addEnergyBucket(dailyBuckets, dateKey, numberOr(item.generationValue, 0), numberOr(item.consumptionValue, 0));
+  }
+
+  const daily = [...dailyBuckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([period, bucket]) => bucketToPeriod(period, bucket, labelDate(period)));
+  const weeklyBuckets = new Map<string, EnergyBucket>();
+  const monthlyBuckets = new Map<string, EnergyBucket>();
+  const yearlyBuckets = new Map<string, EnergyBucket>();
+
+  for (const day of daily) {
+    const week = startOfWeekKey(day.period);
+    const month = day.period.slice(0, 7);
+    const year = day.period.slice(0, 4);
+    addEnergyBucket(weeklyBuckets, week, day.productionKwh, day.consumptionKwh, day.days);
+    addEnergyBucket(monthlyBuckets, month, day.productionKwh, day.consumptionKwh, day.days);
+    addEnergyBucket(yearlyBuckets, year, day.productionKwh, day.consumptionKwh, day.days);
+  }
+
+  const weekly = [...weeklyBuckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([period, bucket]) => bucketToPeriod(period, bucket, labelWeek(period)));
+  const monthly = [...monthlyBuckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([period, bucket]) => bucketToPeriod(period, bucket, labelMonth(period)));
+  const yearly = [...yearlyBuckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([period, bucket]) => bucketToPeriod(period, bucket, period));
+
+  const todayKey = dateString(new Date());
+  const currentWeek = startOfWeekKey(todayKey);
+  const currentMonth = todayKey.slice(0, 7);
+  const currentYear = todayKey.slice(0, 4);
+
+  return {
+    source,
+    lastUpdated: nowIso(),
+    coverageStart: daily[0]?.period ?? null,
+    coverageEnd: daily.at(-1)?.period ?? null,
+    current: {
+      today: daily.find((item) => item.period === todayKey) ?? null,
+      week: weekly.find((item) => item.period === currentWeek) ?? null,
+      month: monthly.find((item) => item.period === currentMonth) ?? null,
+      year: yearly.find((item) => item.period === currentYear) ?? null,
+    },
+    daily,
+    weekly,
+    monthly,
+    yearly,
+  };
+}
+
+function mockEnergySummary(): SolarEnergySummary {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), 0, 1);
+  const items: DeyeStationDataItem[] = [];
+
+  for (const cursor = new Date(start); cursor <= today; cursor.setDate(cursor.getDate() + 1)) {
+    const dayIndex = Math.floor((cursor.getTime() - start.getTime()) / 86400000);
+    items.push({
+      year: cursor.getFullYear(),
+      month: cursor.getMonth() + 1,
+      day: cursor.getDate(),
+      generationValue: 11 + Math.max(0, Math.sin(dayIndex / 18)) * 18 + (dayIndex % 7 === 0 ? 3 : 0),
+      consumptionValue: 17 + Math.max(0, Math.cos(dayIndex / 24)) * 8,
+    });
+  }
+
+  return buildEnergySummary(items, "mock");
 }
 
 function sha256(value: string) {
@@ -625,6 +804,38 @@ export async function getSolarHistory(): Promise<SolarHistory> {
   } catch (error) {
     console.error(error);
     return mockHistory();
+  }
+}
+
+export async function getSolarEnergySummary(): Promise<SolarEnergySummary> {
+  const config = getConfig();
+  if (!hasLiveConfig(config)) return mockEnergySummary();
+
+  try {
+    const today = new Date();
+    const yearStart = new Date(today.getFullYear(), 0, 1);
+    const nextDay = new Date(today);
+    nextDay.setDate(today.getDate() + 1);
+    const history = await deyePost<DeyeStationHistory>("/v1.0/station/history", {
+      stationId: Number(config.stationId),
+      granularity: 2,
+      startAt: dateString(yearStart),
+      endAt: dateString(nextDay),
+    });
+    ensureSuccess(history, "Deye yearly energy history");
+    const summary = buildEnergySummary(history.stationDataItems ?? [], "live");
+
+    if (summary.daily.length === 0) {
+      return { ...summary, error: "Deye returned no daily energy history for this year." };
+    }
+
+    return summary;
+  } catch (error) {
+    console.error(error);
+    return {
+      ...emptyEnergySummary("live"),
+      error: error instanceof Error ? error.message : "Unable to load Deye energy history.",
+    };
   }
 }
 

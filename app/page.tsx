@@ -56,7 +56,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { Alarm, SolarAlarms, SolarHistory, SolarOverview } from "@/lib/deye-api";
+import type { Alarm, EnergySummaryPeriod, SolarAlarms, SolarEnergySummary, SolarHistory, SolarOverview } from "@/lib/deye-api";
 import type { WeatherForecast } from "@/lib/weather";
 
 type DashboardData = {
@@ -818,14 +818,8 @@ function CctvFullscreenModal({
   showPtz: boolean;
   cameraIp?: string;
 }) {
-  const [mounted, setMounted] = useState(false);
-
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open || !mounted) return;
+    if (!open) return;
 
     const previousOverflow = document.body.style.overflow;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -839,9 +833,9 @@ function CctvFullscreenModal({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, mounted, onClose]);
+  }, [open, onClose]);
 
-  if (!open || !mounted) return null;
+  if (!open) return null;
 
   return createPortal(
     <div
@@ -1383,6 +1377,166 @@ function AlarmCard({ alarm }: { alarm: Alarm }) {
   );
 }
 
+function formatSummaryKwh(value: number | null) {
+  if (value === null) return "--";
+  if (value >= 1000) return `${(value / 1000).toFixed(2)} MWh`;
+  return `${value.toFixed(1)} kWh`;
+}
+
+function EnergySummaryHero({ title, period, accent }: { title: string; period: EnergySummaryPeriod | null; accent: string }) {
+  return (
+    <div className={`rounded-2xl border border-white/60 bg-gradient-to-br ${accent} p-4 shadow-sm`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">{title}</p>
+      <p className="data-readout mt-3 text-2xl font-black text-slate-950">{formatSummaryKwh(period?.productionKwh ?? null)}</p>
+      <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
+        <span>ผลิตไฟฟ้า</span>
+        <span>{period ? `${period.days} วันข้อมูล` : "ยังไม่มีข้อมูล"}</span>
+      </div>
+    </div>
+  );
+}
+
+function EnergySummaryList({ title, subtitle, periods }: { title: string; subtitle: string; periods: EnergySummaryPeriod[] }) {
+  return (
+    <div className="rounded-2xl border border-white/65 bg-white/28 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-950">{title}</h3>
+          <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+        </div>
+        <Zap className="h-4 w-4 shrink-0 text-amber-500" />
+      </div>
+      <div className="mt-3 space-y-2">
+        {periods.length > 0 ? (
+          periods.map((period) => (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-white/45 px-3 py-2.5" key={period.period}>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-700">{period.label}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">ใช้ {formatSummaryKwh(period.consumptionKwh)}</p>
+              </div>
+              <strong className="data-readout shrink-0 text-sm font-bold text-emerald-700">{formatSummaryKwh(period.productionKwh)}</strong>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-xl bg-white/35 px-3 py-4 text-center text-sm text-slate-500">ยังไม่มีข้อมูลช่วงนี้</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EnergyHistorySection() {
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const [summary, setSummary] = useState<SolarEnergySummary | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const node = sectionRef.current;
+    if (!node) return;
+
+    let cancelled = false;
+    let requested = false;
+    const loadSummary = async () => {
+      if (requested) return;
+      requested = true;
+      setIsLoading(true);
+      try {
+        const response = await fetch("/api/solar/summary", { cache: "no-store" });
+        const next = (await response.json()) as SolarEnergySummary & { error?: string };
+        if (!response.ok) throw new Error(next.error ?? "Unable to load energy history.");
+        if (!cancelled) {
+          setSummary(next);
+          setError(null);
+        }
+      } catch (caught) {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to load energy history.");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    if (!("IntersectionObserver" in window)) {
+      void loadSummary();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          void loadSummary();
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(node);
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <section className="mt-4 scroll-mt-4 glass premium-panel rounded-3xl p-5" id="energy-history-section" ref={sectionRef}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Energy history</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">สรุปการผลิตไฟฟ้า</h2>
+          <p className="mt-1 text-sm text-slate-500">รวมข้อมูลรายวัน รายสัปดาห์ รายเดือน และรายปีไว้ในหน้าเดียว</p>
+        </div>
+        <div className="rounded-2xl border border-white/65 bg-white/38 p-2 text-slate-500">
+          <CalendarDays className="h-5 w-5" />
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }, (_, index) => <div className="skeleton h-28 rounded-2xl" key={index} />)}
+        </div>
+      )}
+
+      {error && !isLoading && (
+        <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700">
+          โหลดประวัติการผลิตไม่สำเร็จ: {error}
+        </div>
+      )}
+
+      {summary && !isLoading && (
+        <>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <EnergySummaryHero title="วันนี้" period={summary.current.today} accent="from-amber-100/90 to-orange-50/60" />
+            <EnergySummaryHero title="สัปดาห์นี้" period={summary.current.week} accent="from-sky-100/90 to-cyan-50/60" />
+            <EnergySummaryHero title="เดือนนี้" period={summary.current.month} accent="from-violet-100/90 to-fuchsia-50/60" />
+            <EnergySummaryHero title="ปีนี้" period={summary.current.year} accent="from-emerald-100/90 to-teal-50/60" />
+          </div>
+
+          {summary.error && (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-800">
+              {summary.error}
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-3 2xl:grid-cols-4">
+            <EnergySummaryList title="รายวัน" subtitle="ย้อนหลัง 14 วัน" periods={summary.daily.slice(-14).reverse()} />
+            <EnergySummaryList title="รายสัปดาห์" subtitle="ย้อนหลัง 8 สัปดาห์" periods={summary.weekly.slice(-8).reverse()} />
+            <EnergySummaryList title="รายเดือน" subtitle="เดือนที่มีข้อมูลในปีนี้" periods={summary.monthly.slice(-12).reverse()} />
+            <EnergySummaryList title="รายปี" subtitle="ปีที่มีข้อมูลจาก Deye" periods={summary.yearly.slice(-5).reverse()} />
+          </div>
+
+          <p className="mt-4 text-xs text-slate-500">
+            แหล่งข้อมูล: {summary.source === "live" ? "Deye Cloud history" : "Mock data"}
+            {summary.coverageStart && summary.coverageEnd ? ` · ครอบคลุม ${summary.coverageStart} ถึง ${summary.coverageEnd}` : " · ยังไม่มีช่วงข้อมูลที่ใช้งานได้"}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [weather, setWeather] = useState<WeatherForecast | null>(null);
@@ -1801,6 +1955,8 @@ export default function DashboardPage() {
             )}
           </div>
         </section>
+
+        <EnergyHistorySection />
       </main>
       <nav className="mobile-tabbar fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 gap-0.5 border-t border-white/15 bg-slate-950/85 px-2 pt-1 pb-[max(env(safe-area-inset-bottom),0.25rem)] backdrop-blur-2xl sm:hidden">
         {tabs.map((tab) => {
