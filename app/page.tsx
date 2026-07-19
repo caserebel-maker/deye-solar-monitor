@@ -1391,11 +1391,11 @@ function EnergySummaryHero({ title, period }: { title: string; period: EnergySum
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div>
-          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Generated</p>
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-100"><span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.85)]" />Generated</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">{formatSummaryKwh(period?.productionKwh ?? null)}</p>
         </div>
         <div>
-          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-orange-700"><span className="h-2 w-2 rounded-full bg-orange-400" />Consumed</p>
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-100"><span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.85)]" />Consumed</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">{formatSummaryKwh(period?.consumptionKwh ?? null)}</p>
         </div>
       </div>
@@ -1425,7 +1425,7 @@ function EnergySummaryList({ title, subtitle, periods }: { title: string; subtit
                 <p className="truncate text-sm font-medium text-slate-700">{period.label}</p>
                 <p className="mt-0.5 text-[11px] text-slate-500">Consumed {formatSummaryKwh(period.consumptionKwh)}</p>
               </div>
-              <strong className="data-readout shrink-0 text-sm font-bold text-emerald-700">{formatSummaryKwh(period.productionKwh)}</strong>
+              <strong className="data-readout shrink-0 text-sm font-bold text-cyan-100 drop-shadow-[0_0_10px_rgba(103,232,249,0.35)]">{formatSummaryKwh(period.productionKwh)}</strong>
             </div>
           ))
         ) : (
@@ -1573,8 +1573,8 @@ function EnergyHistorySection() {
                   <p className="mt-1 text-xs text-slate-500">{selectedConfig.subtitle}</p>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Generated</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-400" />Consumed</span>
+                  <span className="inline-flex items-center gap-1.5 text-cyan-100"><span className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(103,232,249,0.7)]" />Generated</span>
+                  <span className="inline-flex items-center gap-1.5 text-amber-100"><span className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(252,211,77,0.7)]" />Consumed</span>
                 </div>
               </div>
               <div className="mt-3 h-72">
@@ -1585,8 +1585,8 @@ function EnergyHistorySection() {
                       <XAxis dataKey="label" interval="preserveStartEnd" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
                       <YAxis stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={{ background: "rgba(255,255,255,.94)", border: "1px solid rgba(129,140,248,.22)", borderRadius: 16, color: "#1e293b" }} />
-                      <Bar dataKey="productionKwh" name="Generated (kWh)" fill="#22c55e" radius={[7, 7, 0, 0]} />
-                      <Bar dataKey="consumptionKwh" name="Consumed (kWh)" fill="#f97316" radius={[7, 7, 0, 0]} />
+                      <Bar dataKey="productionKwh" name="Generated (kWh)" fill="#67e8f9" radius={[7, 7, 0, 0]} />
+                      <Bar dataKey="consumptionKwh" name="Consumed (kWh)" fill="#fcd34d" radius={[7, 7, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
