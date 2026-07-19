@@ -813,20 +813,28 @@ export async function getSolarEnergySummary(): Promise<SolarEnergySummary> {
 
   try {
     const today = new Date();
-    const yearStart = new Date(today.getFullYear(), 0, 1);
-    const nextDay = new Date(today);
-    nextDay.setDate(today.getDate() + 1);
-    const history = await deyePost<DeyeStationHistory>("/v1.0/station/history", {
-      stationId: Number(config.stationId),
-      granularity: 2,
-      startAt: dateString(yearStart),
-      endAt: dateString(nextDay),
-    });
-    ensureSuccess(history, "Deye yearly energy history");
-    const summary = buildEnergySummary(history.stationDataItems ?? [], "live");
+    const year = today.getFullYear();
+    const historyItems: DeyeStationDataItem[] = [];
+
+    // Deye limits station-history requests to 31 days, so build the year from month-sized windows.
+    for (let month = 0; month <= today.getMonth(); month += 1) {
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month + 1, 0);
+      const endAt = month === today.getMonth() && today < monthEnd ? today : monthEnd;
+      const history = await deyePost<DeyeStationHistory>("/v1.0/station/history", {
+        stationId: Number(config.stationId),
+        granularity: 2,
+        startAt: dateString(monthStart),
+        endAt: dateString(endAt),
+      });
+      ensureSuccess(history, `Deye energy history ${year}-${String(month + 1).padStart(2, "0")}`);
+      historyItems.push(...(history.stationDataItems ?? []));
+    }
+
+    const summary = buildEnergySummary(historyItems, "live");
 
     if (summary.daily.length === 0) {
-      return { ...summary, error: "Deye returned no daily energy history for this year." };
+      return { ...summary, error: "Deye returned no daily energy history for the selected year." };
     }
 
     return summary;

@@ -1384,23 +1384,24 @@ function formatSummaryKwh(value: number | null) {
   return `${value.toFixed(1)} kWh`;
 }
 
-function EnergySummaryHero({ title, period, accent }: { title: string; period: EnergySummaryPeriod | null; accent: string }) {
+function EnergySummaryHero({ title, period }: { title: string; period: EnergySummaryPeriod | null }) {
   return (
-    <div className={`rounded-2xl border border-white/60 bg-gradient-to-br ${accent} p-4 shadow-sm`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">{title}</p>
+    <div className="relative overflow-hidden rounded-2xl border border-white/25 bg-white/[0.09] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_14px_30px_rgba(15,23,42,0.16)] backdrop-blur-2xl">
+      <div aria-hidden className="pointer-events-none absolute inset-x-4 top-0 h-px bg-white/55" />
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{title}</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         <div>
-          <p className="text-[11px] font-medium text-emerald-700">ผลิต</p>
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" />Generated</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">{formatSummaryKwh(period?.productionKwh ?? null)}</p>
         </div>
         <div>
-          <p className="text-[11px] font-medium text-orange-700">ใช้</p>
+          <p className="inline-flex items-center gap-1.5 text-[11px] font-medium text-orange-700"><span className="h-2 w-2 rounded-full bg-orange-400" />Consumed</p>
           <p className="data-readout mt-1 text-xl font-black text-slate-950">{formatSummaryKwh(period?.consumptionKwh ?? null)}</p>
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
-        <span>หน่วย kWh</span>
-        <span>{period ? `${period.days} วันข้อมูล` : "ยังไม่มีข้อมูล"}</span>
+        <span>Energy in kWh</span>
+        <span>{period ? `${period.days} days covered` : "No data"}</span>
       </div>
     </div>
   );
@@ -1408,7 +1409,7 @@ function EnergySummaryHero({ title, period, accent }: { title: string; period: E
 
 function EnergySummaryList({ title, subtitle, periods }: { title: string; subtitle: string; periods: EnergySummaryPeriod[] }) {
   return (
-    <div className="rounded-2xl border border-white/65 bg-white/28 p-4">
+    <div className="rounded-2xl border border-white/20 bg-white/[0.07] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-semibold text-slate-950">{title}</h3>
@@ -1419,16 +1420,16 @@ function EnergySummaryList({ title, subtitle, periods }: { title: string; subtit
       <div className="mt-3 space-y-2">
         {periods.length > 0 ? (
           periods.map((period) => (
-            <div className="flex items-center justify-between gap-3 rounded-xl bg-white/45 px-3 py-2.5" key={period.period}>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/[0.08] px-3 py-2.5 transition-colors hover:bg-white/[0.14]" key={period.period}>
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-700">{period.label}</p>
-                <p className="mt-0.5 text-[11px] text-slate-500">ใช้ {formatSummaryKwh(period.consumptionKwh)}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Consumed {formatSummaryKwh(period.consumptionKwh)}</p>
               </div>
               <strong className="data-readout shrink-0 text-sm font-bold text-emerald-700">{formatSummaryKwh(period.productionKwh)}</strong>
             </div>
           ))
         ) : (
-          <div className="rounded-xl bg-white/35 px-3 py-4 text-center text-sm text-slate-500">ยังไม่มีข้อมูลช่วงนี้</div>
+          <div className="rounded-xl border border-white/15 bg-white/[0.06] px-3 py-4 text-center text-sm text-slate-500">No data available for this range</div>
         )}
       </div>
     </div>
@@ -1492,10 +1493,10 @@ function EnergyHistorySection() {
   }, []);
 
   const rangeConfig: Record<EnergySummaryRange, { label: string; subtitle: string; limit: number }> = {
-    daily: { label: "รายวัน", subtitle: "ย้อนหลัง 14 วัน", limit: 14 },
-    weekly: { label: "รายสัปดาห์", subtitle: "ย้อนหลัง 8 สัปดาห์", limit: 8 },
-    monthly: { label: "รายเดือน", subtitle: "เดือนที่มีข้อมูลในปีนี้", limit: 12 },
-    yearly: { label: "รายปี", subtitle: "ปีที่มีข้อมูลจาก Deye", limit: 5 },
+    daily: { label: "Daily", subtitle: "Last 14 days", limit: 14 },
+    weekly: { label: "Weekly", subtitle: "Last 8 weeks", limit: 8 },
+    monthly: { label: "Monthly", subtitle: "Months with data this year", limit: 12 },
+    yearly: { label: "Yearly", subtitle: "Years available from Deye", limit: 5 },
   };
   const selectedPeriods = summary?.[range] ?? [];
   const selectedConfig = rangeConfig[range];
@@ -1503,14 +1504,15 @@ function EnergyHistorySection() {
   const detailPeriods = [...chartPeriods].reverse();
 
   return (
-    <section className="mt-4 scroll-mt-4 glass premium-panel rounded-3xl p-5" id="energy-history-section" ref={sectionRef}>
+    <section className="relative mt-4 scroll-mt-4 overflow-hidden rounded-3xl border border-white/25 bg-white/[0.07] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_18px_50px_rgba(15,23,42,0.16)] backdrop-blur-2xl" id="energy-history-section" ref={sectionRef}>
+      <div aria-hidden className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/55" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.2em] eyebrow-text">Energy history</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-950">สรุปการผลิตไฟฟ้า</h2>
-          <p className="mt-1 text-sm text-slate-500">รวมข้อมูลรายวัน รายสัปดาห์ รายเดือน และรายปีไว้ในหน้าเดียว</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-950">Energy Summary</h2>
+          <p className="mt-1 text-sm text-slate-500">Generation and consumption across every time range</p>
         </div>
-        <div className="rounded-2xl border border-white/65 bg-white/38 p-2 text-slate-500">
+        <div className="rounded-2xl border border-white/25 bg-white/[0.09] p-2 text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-xl">
           <CalendarDays className="h-5 w-5" />
         </div>
       </div>
@@ -1522,57 +1524,57 @@ function EnergyHistorySection() {
       )}
 
       {error && !isLoading && (
-        <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700">
-          โหลดประวัติการผลิตไม่สำเร็จ: {error}
+        <div className="mt-5 rounded-2xl border border-rose-200/50 bg-rose-400/10 p-4 text-sm text-rose-700 backdrop-blur-xl">
+          History request failed: {error}
         </div>
       )}
 
       {summary && !isLoading && (
         <>
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <EnergySummaryHero title="วันนี้" period={summary.current.today} accent="from-amber-100/90 to-orange-50/60" />
-            <EnergySummaryHero title="สัปดาห์นี้" period={summary.current.week} accent="from-sky-100/90 to-cyan-50/60" />
-            <EnergySummaryHero title="เดือนนี้" period={summary.current.month} accent="from-violet-100/90 to-fuchsia-50/60" />
-            <EnergySummaryHero title="ปีนี้" period={summary.current.year} accent="from-emerald-100/90 to-teal-50/60" />
+            <EnergySummaryHero title="Today" period={summary.current.today} />
+            <EnergySummaryHero title="This week" period={summary.current.week} />
+            <EnergySummaryHero title="This month" period={summary.current.month} />
+            <EnergySummaryHero title="This year" period={summary.current.year} />
           </div>
 
           {summary.error && (
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-800">
-              {summary.error}
+            <div className="mt-4 rounded-2xl border border-amber-200/45 bg-amber-400/10 p-3 text-sm text-amber-800 backdrop-blur-xl">
+              History request failed: {summary.error}
             </div>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/65 bg-white/28 p-3">
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/20 bg-white/[0.07] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-xl">
             <div>
-              <p className="text-sm font-semibold text-slate-950">ดูรายละเอียดแบบ</p>
-              <p className="mt-0.5 text-xs text-slate-500">กราฟจะแสดงพลังงานผลิตและพลังงานที่ใช้คู่กัน</p>
+              <p className="text-sm font-semibold text-slate-950">Explore by time range</p>
+              <p className="mt-0.5 text-xs text-slate-500">The chart compares generated and consumed energy</p>
             </div>
             <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
-              <span className="sr-only">เลือกช่วงเวลา</span>
+              <span className="sr-only">Choose energy range</span>
               <select
-                aria-label="เลือกช่วงเวลาพลังงาน"
+                aria-label="Choose energy range"
                 className="rounded-xl border border-indigo-200 bg-white/75 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200"
                 onChange={(event) => setRange(event.target.value as EnergySummaryRange)}
                 value={range}
               >
-                <option value="daily">รายวัน</option>
-                <option value="weekly">รายสัปดาห์</option>
-                <option value="monthly">รายเดือน</option>
-                <option value="yearly">รายปี</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
               </select>
             </label>
           </div>
 
           <div className="mt-4 grid gap-4 2xl:grid-cols-[1.35fr_0.65fr]">
-            <div className="rounded-2xl border border-white/65 bg-white/28 p-4">
+            <div className="rounded-2xl border border-white/20 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-xl">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-semibold text-slate-950">ผลิตเทียบกับใช้ · {selectedConfig.label}</h3>
+                  <h3 className="font-semibold text-slate-950">Generation vs. consumption · {selectedConfig.label}</h3>
                   <p className="mt-1 text-xs text-slate-500">{selectedConfig.subtitle}</p>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-slate-500">
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />ผลิต</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-400" />ใช้</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Generated</span>
+                  <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-400" />Consumed</span>
                 </div>
               </div>
               <div className="mt-3 h-72">
@@ -1583,22 +1585,22 @@ function EnergyHistorySection() {
                       <XAxis dataKey="label" interval="preserveStartEnd" stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
                       <YAxis stroke="rgba(71,85,105,0.62)" tickLine={false} axisLine={false} />
                       <Tooltip contentStyle={{ background: "rgba(255,255,255,.94)", border: "1px solid rgba(129,140,248,.22)", borderRadius: 16, color: "#1e293b" }} />
-                      <Bar dataKey="productionKwh" name="ผลิต (kWh)" fill="#22c55e" radius={[7, 7, 0, 0]} />
-                      <Bar dataKey="consumptionKwh" name="ใช้ (kWh)" fill="#f97316" radius={[7, 7, 0, 0]} />
+                      <Bar dataKey="productionKwh" name="Generated (kWh)" fill="#22c55e" radius={[7, 7, 0, 0]} />
+                      <Bar dataKey="consumptionKwh" name="Consumed (kWh)" fill="#f97316" radius={[7, 7, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl bg-white/25 text-sm text-slate-500">ยังไม่มีข้อมูลช่วงนี้</div>
+                  <div className="flex h-full items-center justify-center rounded-xl border border-white/15 bg-white/[0.05] text-sm text-slate-500">No data available for this range</div>
                 )}
               </div>
             </div>
 
-            <EnergySummaryList title={`${selectedConfig.label} · รายละเอียด`} subtitle="เรียงจากล่าสุดไปเก่าสุด" periods={detailPeriods} />
+            <EnergySummaryList title={`${selectedConfig.label} details`} subtitle="Newest first" periods={detailPeriods} />
           </div>
 
           <p className="mt-4 text-xs text-slate-500">
-            แหล่งข้อมูล: {summary.source === "live" ? "Deye Cloud history" : "Mock data"}
-            {summary.coverageStart && summary.coverageEnd ? ` · ครอบคลุม ${summary.coverageStart} ถึง ${summary.coverageEnd}` : " · ยังไม่มีช่วงข้อมูลที่ใช้งานได้"}
+            Source: {summary.source === "live" ? "Deye Cloud history" : "Mock data"}
+            {summary.coverageStart && summary.coverageEnd ? ` · Coverage: ${summary.coverageStart} to ${summary.coverageEnd}` : " · No usable history range"}
           </p>
         </>
       )}
