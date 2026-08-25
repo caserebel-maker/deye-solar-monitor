@@ -39,13 +39,34 @@ async function readUbuntuStatus(): Promise<ServerStatus> {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const data = await response.json() as {
+    const rawText = await response.text();
+    let data: {
       hostname?: string;
       time?: string;
       uptime?: string;
       sensors?: string;
-    };
-    const parsed = parseSensors(data.sensors ?? "");
+    } = {};
+
+    try {
+      data = JSON.parse(rawText) as {
+        hostname?: string;
+        time?: string;
+        uptime?: string;
+        sensors?: string;
+      };
+    } catch {
+      const hostnameMatch = rawText.match(/Host:\s*([^\n]+)/);
+      const timeMatch = rawText.match(/Time:\s*([^\n]+)/);
+      const uptimeMatch = rawText.match(/Uptime:\s*([^\n]+)/);
+      data = {
+        hostname: hostnameMatch ? hostnameMatch[1].trim() : undefined,
+        time: timeMatch ? timeMatch[1].trim() : undefined,
+        uptime: uptimeMatch ? uptimeMatch[1].trim() : undefined,
+        sensors: rawText,
+      };
+    }
+
+    const parsed = parseSensors(data.sensors ?? rawText);
     const temperatureC = parsed.cpu?.value ?? parsed.max?.value ?? null;
     const hotspot = parsed.max && parsed.cpu && parsed.max.name !== parsed.cpu.name
       ? ` · hotspot ${parsed.max.name} ${Math.round(parsed.max.value)}°`
@@ -102,6 +123,11 @@ async function readM2ProStatus(): Promise<ServerStatus> {
 }
 
 function offlineStatus(id: string, name: string, role: string, error: unknown): ServerStatus {
+  let message = "unreachable";
+  if (error instanceof Error) {
+    const cause = (error as { cause?: Error })?.cause?.message;
+    message = cause ? `${error.message} (${cause})` : error.message;
+  }
   return {
     id,
     name,
@@ -110,7 +136,7 @@ function offlineStatus(id: string, name: string, role: string, error: unknown): 
     temperatureC: null,
     maxSensor: null,
     fanRpm: null,
-    detail: error instanceof Error ? error.message : "unreachable",
+    detail: message,
     updatedAt: new Date().toISOString(),
   };
 }
