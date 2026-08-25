@@ -144,7 +144,7 @@ def render_text(data):
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         data = snapshot()
-        if self.path.startswith("/json"):
+        if "json" in self.path:
             body = json.dumps(data, ensure_ascii=False, indent=2).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
