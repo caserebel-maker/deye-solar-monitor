@@ -32,94 +32,108 @@ export async function GET() {
 }
 
 async function readUbuntuStatus(): Promise<ServerStatus> {
-  try {
-    const response = await fetch(ubuntuHealthUrl, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const rawText = await response.text();
-    let data: {
-      hostname?: string;
-      time?: string;
-      uptime?: string;
-      sensors?: string;
-    } = {};
-
+  let lastError: unknown = new Error("unreachable");
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      data = JSON.parse(rawText) as {
+      const response = await fetch(ubuntuHealthUrl, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const rawText = await response.text();
+      let data: {
         hostname?: string;
         time?: string;
         uptime?: string;
         sensors?: string;
-      };
-    } catch {
-      const hostnameMatch = rawText.match(/Host:\s*([^\n]+)/);
-      const timeMatch = rawText.match(/Time:\s*([^\n]+)/);
-      const uptimeMatch = rawText.match(/Uptime:\s*([^\n]+)/);
-      data = {
-        hostname: hostnameMatch ? hostnameMatch[1].trim() : undefined,
-        time: timeMatch ? timeMatch[1].trim() : undefined,
-        uptime: uptimeMatch ? uptimeMatch[1].trim() : undefined,
-        sensors: rawText,
-      };
-    }
+      } = {};
 
-    const parsed = parseSensors(data.sensors ?? rawText);
-    const temperatureC = parsed.cpu?.value ?? parsed.max?.value ?? null;
-    const hotspot = parsed.max && parsed.cpu && parsed.max.name !== parsed.cpu.name
-      ? ` · hotspot ${parsed.max.name} ${Math.round(parsed.max.value)}°`
-      : "";
-    return {
-      id: "ubuntu-macmini",
-      name: "Mac mini Ubuntu",
-      role: data.hostname ?? "pond-server",
-      status: (parsed.max?.value ?? temperatureC ?? 0) >= 85 ? "warning" : "online",
-      temperatureC,
-      maxSensor: parsed.cpu?.name ?? parsed.max?.name ?? null,
-      fanRpm: parsed.fanRpm,
-      detail: `${data.uptime ?? "Health endpoint online"}${hotspot}`,
-      updatedAt: data.time ?? new Date().toISOString(),
-    };
-  } catch (error) {
-    return offlineStatus("ubuntu-macmini", "Mac mini Ubuntu", "pond-server", error);
+      try {
+        data = JSON.parse(rawText) as {
+          hostname?: string;
+          time?: string;
+          uptime?: string;
+          sensors?: string;
+        };
+      } catch {
+        const hostnameMatch = rawText.match(/Host:\s*([^\n]+)/);
+        const timeMatch = rawText.match(/Time:\s*([^\n]+)/);
+        const uptimeMatch = rawText.match(/Uptime:\s*([^\n]+)/);
+        data = {
+          hostname: hostnameMatch ? hostnameMatch[1].trim() : undefined,
+          time: timeMatch ? timeMatch[1].trim() : undefined,
+          uptime: uptimeMatch ? uptimeMatch[1].trim() : undefined,
+          sensors: rawText,
+        };
+      }
+
+      const parsed = parseSensors(data.sensors ?? rawText);
+      const temperatureC = parsed.cpu?.value ?? parsed.max?.value ?? null;
+      const hotspot = parsed.max && parsed.cpu && parsed.max.name !== parsed.cpu.name
+        ? ` · hotspot ${parsed.max.name} ${Math.round(parsed.max.value)}°`
+        : "";
+      return {
+        id: "ubuntu-macmini",
+        name: "Mac mini Ubuntu",
+        role: data.hostname ?? "pond-server",
+        status: (parsed.max?.value ?? temperatureC ?? 0) >= 85 ? "warning" : "online",
+        temperatureC,
+        maxSensor: parsed.cpu?.name ?? parsed.max?.name ?? null,
+        fanRpm: parsed.fanRpm,
+        detail: `${data.uptime ?? "Health endpoint online"}${hotspot}`,
+        updatedAt: data.time ?? new Date().toISOString(),
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
   }
+  return offlineStatus("ubuntu-macmini", "Mac mini Ubuntu", "pond-server", lastError);
 }
 
 async function readM2ProStatus(): Promise<ServerStatus> {
-  try {
-    const response = await fetch(m2HealthUrl, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  let lastError: unknown = new Error("unreachable");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(m2HealthUrl, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    const data = await response.json() as {
-      ok?: boolean;
-      temperatureC?: number;
-      tempC?: number;
-      sensors?: string;
-      cameras_connected?: string[];
-    };
-    const parsed = parseSensors(data.sensors ?? "");
-    const temperatureC = numeric(data.temperatureC ?? data.tempC ?? parsed.max?.value);
-    return {
-      id: "m2pro-macmini",
-      name: "Mac mini M2 Pro",
-      role: "home-macmini",
-      status: data.ok === false ? "offline" : "online",
-      temperatureC,
-      maxSensor: parsed.max?.name ?? (temperatureC !== null ? "CPU" : null),
-      fanRpm: parsed.fanRpm,
-      detail: data.cameras_connected?.length
-        ? `CCTV online · ${data.cameras_connected.join(", ")}`
-        : "Online · temp unavailable",
-      updatedAt: new Date().toISOString(),
-    };
-  } catch (error) {
-    return offlineStatus("m2pro-macmini", "Mac mini M2 Pro", "home-macmini", error);
+      const data = await response.json() as {
+        ok?: boolean;
+        temperatureC?: number;
+        tempC?: number;
+        sensors?: string;
+        cameras_connected?: string[];
+      };
+      const parsed = parseSensors(data.sensors ?? "");
+      const temperatureC = numeric(data.temperatureC ?? data.tempC ?? parsed.max?.value);
+      return {
+        id: "m2pro-macmini",
+        name: "Mac mini M2 Pro",
+        role: "home-macmini",
+        status: data.ok === false ? "offline" : "online",
+        temperatureC,
+        maxSensor: parsed.max?.name ?? (temperatureC !== null ? "CPU" : null),
+        fanRpm: parsed.fanRpm,
+        detail: data.cameras_connected?.length
+          ? `CCTV online · ${data.cameras_connected.join(", ")}`
+          : "Online · temp unavailable",
+        updatedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
   }
+  return offlineStatus("m2pro-macmini", "Mac mini M2 Pro", "home-macmini", lastError);
 }
 
 function offlineStatus(id: string, name: string, role: string, error: unknown): ServerStatus {
