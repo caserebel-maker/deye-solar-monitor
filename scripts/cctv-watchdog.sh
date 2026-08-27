@@ -57,9 +57,17 @@ trigger_restart() {
 # Resolve via public DNS so we hit the actual Funnel IP, not Tailscale internal
 PUB_IP=$(dig +short +time=3 A "$FUNNEL_HOST" @8.8.8.8 2>/dev/null | head -1)
 if [ -z "$PUB_IP" ]; then
-  log "DNS lookup for $FUNNEL_HOST failed — likely network blip, skipping"
-  exit 0
+  DNS_FAIL_FILE="/tmp/cctv-watchdog.dns-fail"
+  if [ -f "$DNS_FAIL_FILE" ]; then
+    rm -f "$DNS_FAIL_FILE"
+    trigger_restart "Public DNS for $FUNNEL_HOST failed (Funnel dropped) — auto-recovering"
+  else
+    touch "$DNS_FAIL_FILE"
+    log "DNS lookup for $FUNNEL_HOST failed — 1st failure, will retry next minute"
+    exit 0
+  fi
 fi
+rm -f "/tmp/cctv-watchdog.dns-fail" 2>/dev/null || true
 
 CURL=(curl -s -m 8 --resolve "$FUNNEL_HOST:443:$PUB_IP")
 STREAM_SRC="${STREAM_SRC:-tapo_sd}"  # SD = H.264 L3.1, broader browser support

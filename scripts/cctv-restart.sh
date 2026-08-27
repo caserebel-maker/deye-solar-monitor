@@ -77,8 +77,9 @@ step "[3/5] Tailscale up + Funnel (bounce only if probe still fails)"
 # resort.
 if [ -x "$TS_BIN" ] && [ -S "$TS_SOCK" ]; then
   "$TS_BIN" --socket="$TS_SOCK" up --hostname=home-macmini >/dev/null 2>&1 && ok "tailnet up"
-  "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 "http://localhost:$GO2RTC_PORT" >/dev/null 2>&1 && ok "funnel mount / → :$GO2RTC_PORT"
-  "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 --set-path=/control "http://127.0.0.1:$PTZ_PORT" >/dev/null 2>&1 && ok "funnel mount /control → :$PTZ_PORT"
+  "$TS_BIN" --socket="$TS_SOCK" serve --bg --yes "$GO2RTC_PORT" >/dev/null 2>&1 && ok "serve mount / → :$GO2RTC_PORT"
+  "$TS_BIN" --socket="$TS_SOCK" serve --bg --yes --set-path=/control "$PTZ_PORT" >/dev/null 2>&1 && ok "serve mount /control → :$PTZ_PORT"
+  "$TS_BIN" --socket="$TS_SOCK" funnel --bg --yes 443 >/dev/null 2>&1 && ok "funnel active on 443"
 
   # Probe external; bounce only if external still hangs after 30s
   PROBE_HOST="home-macmini.tail1d5579.ts.net"
@@ -98,8 +99,9 @@ if [ -x "$TS_BIN" ] && [ -S "$TS_SOCK" ]; then
     sleep 3
     "$TS_BIN" --socket="$TS_SOCK" up --hostname=home-macmini >/dev/null 2>&1
     sleep 3
-    "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 "http://localhost:$GO2RTC_PORT" >/dev/null 2>&1
-    "$TS_BIN" --socket="$TS_SOCK" funnel --bg --https=443 --set-path=/control "http://127.0.0.1:$PTZ_PORT" >/dev/null 2>&1
+    "$TS_BIN" --socket="$TS_SOCK" serve --bg --yes "$GO2RTC_PORT" >/dev/null 2>&1
+    "$TS_BIN" --socket="$TS_SOCK" serve --bg --yes --set-path=/control "$PTZ_PORT" >/dev/null 2>&1
+    "$TS_BIN" --socket="$TS_SOCK" funnel --bg --yes 443 >/dev/null 2>&1
   else
     ok "external probe 200 OK — no bounce needed"
   fi
