@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import https from "node:https";
 
 type ServerStatus = {
   id: string;
@@ -31,14 +32,119 @@ export async function GET() {
   });
 }
 
+type DuckResponse = {
+  ok: boolean;
+  status: number;
+  text: () => Promise<string>;
+  json: () => Promise<any>;
+};
+
+async function resolveDoh(hostname: string): Promise<string | null> {
+  // 1. Google DoH
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=A`, {
+      signal: AbortSignal.timeout(3000),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { Answer?: Array<{ data: string }> };
+      const ip = json.Answer?.[0]?.data;
+      if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)) return ip;
+    }
+  } catch {}
+
+  // 2. Cloudflare DoH
+  try {
+    const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=A`, {
+      headers: { accept: "application/dns-json" },
+      signal: AbortSignal.timeout(3000),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { Answer?: Array<{ data: string }> };
+      const ip = json.Answer?.[0]?.data;
+      if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)) return ip;
+    }
+  } catch {}
+
+  return null;
+}
+
+async function fetchWithSniFallback(targetUrl: string, timeoutMs = 8000): Promise<DuckResponse> {
+  try {
+    const res = await fetch(targetUrl, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return res;
+  } catch (err: unknown) {
+    const errString = String(err instanceof Error ? `${err.message} ${(err as { cause?: Error })?.cause?.message ?? ""}` : err);
+    const isDnsError =
+      errString.includes("ENOTFOUND") ||
+      errString.includes("EAI_AGAIN") ||
+      errString.includes("ECONNREFUSED") ||
+      errString.includes("fetch failed");
+
+    if (!isDnsError) {
+      throw err;
+    }
+
+    // AWS Lambda resolver failed or cached negative NXDOMAIN.
+    // Query public DoH directly and connect using TLS SNI to bypass broken VPC DNS.
+    const parsed = new URL(targetUrl);
+    const hostname = parsed.hostname;
+    let ip = await resolveDoh(hostname);
+    if (!ip) {
+      // Known Tailscale Funnel anycast IP fallback
+      ip = "103.84.155.153";
+    }
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(
+        {
+          host: ip,
+          port: parsed.port ? parseInt(parsed.port, 10) : 443,
+          path: parsed.pathname + parsed.search,
+          method: "GET",
+          servername: hostname, // TLS Server Name Indication (SNI)
+          headers: {
+            Host: hostname,
+            "User-Agent": "deye-solar-monitor/1.0",
+          },
+          timeout: timeoutMs,
+        },
+        (res) => {
+          let rawData = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk) => {
+            rawData += chunk;
+          });
+          res.on("end", () => {
+            const statusCode = res.statusCode ?? 500;
+            resolve({
+              ok: statusCode >= 200 && statusCode < 300,
+              status: statusCode,
+              text: async () => rawData,
+              json: async () => JSON.parse(rawData),
+            });
+          });
+        }
+      );
+
+      req.on("timeout", () => {
+        req.destroy(new Error(`Timeout after ${timeoutMs}ms (via ${ip})`));
+      });
+      req.on("error", (e) => reject(e));
+      req.end();
+    });
+  }
+}
+
 async function readUbuntuStatus(): Promise<ServerStatus> {
   let lastError: unknown = new Error("unreachable");
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await fetch(ubuntuHealthUrl, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(8000),
-      });
+      const response = await fetchWithSniFallback(ubuntuHealthUrl, 8000);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const rawText = await response.text();
@@ -98,13 +204,10 @@ async function readM2ProStatus(): Promise<ServerStatus> {
   let lastError: unknown = new Error("unreachable");
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await fetch(m2HealthUrl, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(8000),
-      });
+      const response = await fetchWithSniFallback(m2HealthUrl, 8000);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-      const data = await response.json() as {
+      const data = (await response.json()) as {
         ok?: boolean;
         temperatureC?: number;
         tempC?: number;
