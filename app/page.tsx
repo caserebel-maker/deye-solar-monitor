@@ -1201,7 +1201,7 @@ function ServerStatusStrip() {
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      fetch("/api/server-status", { cache: "no-store" })
+      fetch("/api/server-status")
         .then((response) => response.json())
         .then((data: { updatedAt?: string; servers?: ServerStatus[] }) => {
           if (cancelled) return;
@@ -1648,7 +1648,7 @@ export default function DashboardPage() {
       setError(null);
       // Keep the stable URL so the 60-second route cache can coalesce
       // telemetry reads from every open dashboard.
-      const dashboard = await fetch("/api/solar/dashboard", { cache: "no-store" }).then((response) => response.json());
+      const dashboard = await fetch("/api/solar/dashboard").then((response) => response.json());
       if (dashboard.error) {
         throw new Error(dashboard.error);
       }

@@ -29,6 +29,10 @@ export async function GET() {
   return NextResponse.json({
     updatedAt: new Date().toISOString(),
     servers: [ubuntu, m2pro],
+  }, {
+    headers: {
+      'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=60',
+    },
   });
 }
 
@@ -36,7 +40,7 @@ type DuckResponse = {
   ok: boolean;
   status: number;
   text: () => Promise<string>;
-  json: () => Promise<any>;
+  json: () => Promise<unknown>;
 };
 
 async function resolveDoh(hostname: string): Promise<string | null> {
