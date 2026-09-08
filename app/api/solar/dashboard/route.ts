@@ -16,7 +16,11 @@ export async function GET() {
       getWeatherForecast(),
     ]);
 
-    return NextResponse.json({ overview, history, alarms, weather });
+    return NextResponse.json({ overview, history, alarms, weather }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unexpected error" },
