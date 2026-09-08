@@ -81,7 +81,7 @@ type ThemeMode = "light" | "dark";
 type ActiveTab = "overview" | "devices" | "alerts" | "plant";
 type EnergySummaryRange = "daily" | "weekly" | "monthly" | "yearly";
 const onlineRefreshMs = 60_000;
-const recoveryRefreshMs = 15_000;
+const recoveryRefreshMs = 30_000;
 const hiddenRefreshMs = 5 * 60_000;
 const utilizationColors = ["#7c3aed", "#38bdf8", "#22c55e"];
 const productionColors = ["#2563eb", "#f6b516", "#f472b6"];
@@ -1213,7 +1213,7 @@ function ServerStatusStrip() {
         });
     };
     load();
-    const timer = window.setInterval(load, 60_000);
+    const timer = window.setInterval(load, 120_000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
@@ -1646,8 +1646,9 @@ export default function DashboardPage() {
     if (manual) setIsRefreshing(true);
     try {
       setError(null);
-      const url = `/api/solar/dashboard?refresh=${Date.now()}`;
-      const dashboard = await fetch(url, { cache: "no-store" }).then((response) => response.json());
+      // Keep the stable URL so the 60-second route cache can coalesce
+      // telemetry reads from every open dashboard.
+      const dashboard = await fetch("/api/solar/dashboard", { cache: "no-store" }).then((response) => response.json());
       if (dashboard.error) {
         throw new Error(dashboard.error);
       }
