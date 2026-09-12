@@ -18,7 +18,8 @@ const ubuntuHealthUrl =
 const m2HealthUrl =
   process.env.M2PRO_MACMINI_HEALTH_URL ?? "https://home-macmini.tail1d5579.ts.net/control/healthz";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function GET() {
   const [ubuntu, m2pro] = await Promise.all([
