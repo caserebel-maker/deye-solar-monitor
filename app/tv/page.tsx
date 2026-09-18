@@ -225,6 +225,7 @@ function TvCctvPlayer({
   label,
   subtitle,
   cameraIp,
+  hasLensToggle = true,
   embedded = false,
   liteMode = false,
 }: {
@@ -232,6 +233,7 @@ function TvCctvPlayer({
   label: string;
   subtitle: string;
   cameraIp: string;
+  hasLensToggle?: boolean;
   embedded?: boolean;
   liteMode?: boolean;
 }) {
@@ -253,11 +255,13 @@ function TvCctvPlayer({
       u.pathname = liteMode
         ? u.pathname.replace(/stream\.m3u8$/, "stream.mp4")
         : u.pathname.replace(/stream\.mp4$/, "stream.m3u8");
-      const originalSrc = u.searchParams.get("src") || "tapo";
-      const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
-      const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
+      if (hasLensToggle) {
+        const originalSrc = u.searchParams.get("src") || "tapo";
+        const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
+        const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
+        u.searchParams.set("src", targetSrc);
+      }
       
-      u.searchParams.set("src", targetSrc);
       u.searchParams.set("_restart", `${restartCount}`);
       u.searchParams.set("_retry", `${retryCount}`);
       u.hash = "";
@@ -265,18 +269,19 @@ function TvCctvPlayer({
     } catch {
       return src;
     }
-  }, [src, lens, restartCount, retryCount, liteMode]);
+  }, [src, lens, restartCount, retryCount, liteMode, hasLensToggle]);
 
   const snapshotUrl = useMemo(() => {
     if (!src || !liteMode) return undefined;
     try {
       const u = new URL(src);
-      const originalSrc = u.searchParams.get("src") || "tapo";
-      const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
-      const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
-
       u.pathname = "/api/frame.jpeg";
-      u.searchParams.set("src", targetSrc);
+      if (hasLensToggle) {
+        const originalSrc = u.searchParams.get("src") || "tapo";
+        const prefix = originalSrc.startsWith("tapo_2") ? "tapo_2" : "tapo";
+        const targetSrc = lens === "lens_b" ? `${prefix}_lens_b_sd` : `${prefix}_sd`;
+        u.searchParams.set("src", targetSrc);
+      }
       u.searchParams.set("_ts", `${snapshotTick}`);
       u.hash = "";
       return u.toString();
@@ -468,7 +473,9 @@ function TvCctvPlayer({
 
   const dotClass = status === "live" ? "bg-emerald-400 animate-pulse" : status === "error" ? "bg-rose-400" : "bg-amber-300";
   const statusLabel = status === "live" ? "Stream reachable" : status === "error" ? "Stream offline" : "Connecting...";
-  const activeLensLabel = lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed";
+  const activeLensLabel = hasLensToggle
+    ? (lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed")
+    : "Pan & Tilt";
 
   return (
     <section className={embedded ? "flex w-full flex-col" : "glass premium-panel flex min-h-0 flex-1 basis-1/2 flex-col rounded-3xl p-5"}>
@@ -482,22 +489,24 @@ function TvCctvPlayer({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[11px] font-medium">
-            <button
-              type="button"
-              onClick={() => setLens("lens_a")}
-              className={`px-2.5 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
-            >
-              Lens A
-            </button>
-            <button
-              type="button"
-              onClick={() => setLens("lens_b")}
-              className={`px-2.5 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
-            >
-              Lens B
-            </button>
-          </div>
+          {hasLensToggle && (
+            <div className="flex overflow-hidden rounded-xl border border-indigo-100 bg-white/55 text-[11px] font-medium">
+              <button
+                type="button"
+                onClick={() => setLens("lens_a")}
+                className={`px-2.5 py-1.5 transition ${lens === "lens_a" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              >
+                Lens A
+              </button>
+              <button
+                type="button"
+                onClick={() => setLens("lens_b")}
+                className={`px-2.5 py-1.5 transition ${lens === "lens_b" ? "bg-indigo-500 text-white" : "text-slate-600 hover:bg-white/80"}`}
+              >
+                Lens B
+              </button>
+            </div>
+          )}
 
           {!liteMode && streamUrl && (
             <button
@@ -578,7 +587,7 @@ function TvCctvPlayer({
         )}
       </div>
 
-      {lens === "lens_b" && <TvCctvPtzControls cameraIp={cameraIp} />}
+      {(!hasLensToggle || lens === "lens_b") && <TvCctvPtzControls cameraIp={cameraIp} />}
     </section>
   );
 }
@@ -596,7 +605,7 @@ export default function TvDashboardPage() {
     const ua = window.navigator.userAgent.toLowerCase();
     return params.get("lite") === "1" || ua.includes("haier") || ua.includes("matrixtv");
   });
-  const [activeTvCamera, setActiveTvCamera] = useState<"solar" | "dlc">("solar");
+  const [activeTvCamera, setActiveTvCamera] = useState<"solar" | "dlc" | "c220">("solar");
 
   // Live Digital Clock (updated every second)
   useEffect(() => {
@@ -887,15 +896,35 @@ export default function TvDashboardPage() {
                   >
                     DLC
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTvCamera("c220")}
+                    className={`rounded-xl px-4 py-2 transition ${activeTvCamera === "c220" ? "bg-indigo-500 text-white" : "text-slate-600"}`}
+                  >
+                    C220
+                  </button>
                 </div>
               </div>
               <div className="min-h-0 flex-1">
                 <TvCctvPlayer
                   key={activeTvCamera}
-                  src={activeTvCamera === "solar" ? process.env.NEXT_PUBLIC_CCTV_HLS_URL || "" : process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""}
-                  label={activeTvCamera === "solar" ? "Solar Camera" : "DLC"}
-                  subtitle="Tapo C545d"
-                  cameraIp={activeTvCamera === "solar" ? "192.168.1.109" : "192.168.1.106"}
+                  src={
+                    activeTvCamera === "solar"
+                      ? process.env.NEXT_PUBLIC_CCTV_HLS_URL || ""
+                      : activeTvCamera === "dlc"
+                        ? process.env.NEXT_PUBLIC_CCTV_HLS_URL_2 || ""
+                        : process.env.NEXT_PUBLIC_CCTV_HLS_URL_3 || process.env.NEXT_PUBLIC_CCTV_HLS_URL_C220 || ""
+                  }
+                  label={activeTvCamera === "solar" ? "Solar Camera" : activeTvCamera === "dlc" ? "DLC" : "Tapo C220"}
+                  subtitle={activeTvCamera === "c220" ? "Tapo C220 · Pan & Tilt" : "Tapo C545d"}
+                  cameraIp={
+                    activeTvCamera === "solar"
+                      ? "192.168.1.109"
+                      : activeTvCamera === "dlc"
+                        ? "192.168.1.106"
+                        : process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_3 ?? process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_C220 ?? "192.168.1.119"
+                  }
+                  hasLensToggle={activeTvCamera !== "c220"}
                   embedded={true}
                   liteMode={true}
                 />
@@ -920,6 +949,18 @@ export default function TvDashboardPage() {
                   label="DLC"
                   subtitle="Tapo C545d"
                   cameraIp="192.168.1.106"
+                  embedded={true}
+                  liteMode={false}
+                />
+              </div>
+              <hr className="border-white/10 shrink-0" />
+              <div className="shrink-0">
+                <TvCctvPlayer
+                  src={process.env.NEXT_PUBLIC_CCTV_HLS_URL_3 || process.env.NEXT_PUBLIC_CCTV_HLS_URL_C220 || ""}
+                  label="Tapo C220"
+                  subtitle="Tapo C220 · Pan & Tilt"
+                  cameraIp={process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_3 ?? process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_C220 ?? "192.168.1.119"}
+                  hasLensToggle={false}
                   embedded={true}
                   liteMode={false}
                 />

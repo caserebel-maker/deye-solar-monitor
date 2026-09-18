@@ -685,7 +685,9 @@ function CctvCard({
   }, [baseUrl, restarting]);
 
   const streamLabel = hasLensToggle ? (lens === "lens_b" ? "Lens B · PTZ" : "Lens A · Fixed") : "Live";
-  const lensDescription = hasLensToggle ? (lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed") : "Single Lens Feed";
+  const lensDescription = hasLensToggle
+    ? (lens === "lens_b" ? "Lens B · Wide & PTZ" : "Lens A · Close-up & Fixed")
+    : (hasPtz ? "Pan & Tilt Feed" : "Single Lens Feed");
 
   return (
     <section className={embedded ? "flex flex-col" : "glass premium-panel flex flex-col rounded-3xl p-5"}>
@@ -776,7 +778,7 @@ function CctvCard({
           </button>
         )}
       </div>
-      {hlsUrl && hasPtz && lens === "lens_b" && <CctvPtzControls cameraIp={cameraIp} />}
+      {hlsUrl && hasPtz && (!hasLensToggle || lens === "lens_b") && <CctvPtzControls cameraIp={cameraIp} />}
       {hlsUrl && (
         <CctvFullscreenModal
           key={`modal-${restartCount}-${lens}`}
@@ -788,7 +790,7 @@ function CctvCard({
           streamLabel={streamLabel}
           isMuted={isMuted}
           onMuteChange={setIsMuted}
-          showPtz={hasPtz && lens === "lens_b"}
+          showPtz={hasPtz && (!hasLensToggle || lens === "lens_b")}
           cameraIp={cameraIp}
         />
       )}
@@ -1892,26 +1894,9 @@ export default function DashboardPage() {
           </div>
           <div className="glass premium-panel flex flex-col rounded-3xl p-5 lg:max-h-[calc(100vh-10rem)]">
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar flex flex-col gap-6">
-              {process.env.NEXT_PUBLIC_CCTV_HLS_URL_3 && (
-                <>
-                  <div className="shrink-0">
-                    <CctvCard
-                      title="Solar Camera 1"
-                      subtitle="Tapo C545d"
-                      baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_3}
-                      hasLensToggle={true}
-                      hasPtz={true}
-                      envName="NEXT_PUBLIC_CCTV_HLS_URL_3"
-                      cameraIp={process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_3}
-                      embedded={true}
-                    />
-                  </div>
-                  <hr className="border-white/10 shrink-0" />
-                </>
-              )}
               <div className="shrink-0">
                 <CctvCard
-                  title={process.env.NEXT_PUBLIC_CCTV_HLS_URL_3 ? "Solar Camera 2" : "Solar Camera"}
+                  title="Solar Camera"
                   subtitle="Tapo C545d"
                   baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL}
                   hasLensToggle={true}
@@ -1931,6 +1916,19 @@ export default function DashboardPage() {
                   hasPtz={true}
                   envName="NEXT_PUBLIC_CCTV_HLS_URL_2"
                   cameraIp={process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_2 ?? "192.168.1.106"}
+                  embedded={true}
+                />
+              </div>
+              <hr className="border-white/10 shrink-0" />
+              <div className="shrink-0">
+                <CctvCard
+                  title="Tapo C220"
+                  subtitle="Tapo C220 · Pan & Tilt"
+                  baseUrl={process.env.NEXT_PUBLIC_CCTV_HLS_URL_3 ?? process.env.NEXT_PUBLIC_CCTV_HLS_URL_C220}
+                  hasLensToggle={false}
+                  hasPtz={true}
+                  envName="NEXT_PUBLIC_CCTV_HLS_URL_3"
+                  cameraIp={process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_3 ?? process.env.NEXT_PUBLIC_CCTV_CAMERA_IP_C220 ?? "192.168.1.119"}
                   embedded={true}
                 />
               </div>

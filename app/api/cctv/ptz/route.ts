@@ -72,10 +72,26 @@ export async function POST(request: Request) {
     });
 
     const text = await upstream.text();
-    return new NextResponse(text, {
-      status: upstream.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    let isJson = false;
+    try {
+      JSON.parse(text);
+      isJson = true;
+    } catch {}
+
+    if (isJson) {
+      return new NextResponse(text, {
+        status: upstream.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    } else {
+      return NextResponse.json(
+        {
+          error: `Upstream error (HTTP ${upstream.status})`,
+          detail: text.slice(0, 150),
+        },
+        { status: upstream.status }
+      );
+    }
   } catch (err) {
     return NextResponse.json(
       {
