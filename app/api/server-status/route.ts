@@ -14,7 +14,7 @@ type ServerStatus = {
 };
 
 const ubuntuHealthUrl =
-  process.env.UBUNTU_MACMINI_HEALTH_URL ?? "https://pond-server.tail5092c8.ts.net/pond-health/json";
+  process.env.UBUNTU_MACMINI_HEALTH_URL ?? "https://home-macmini.tail1d5579.ts.net/control/ubuntu-health";
 const m2HealthUrl =
   process.env.M2PRO_MACMINI_HEALTH_URL ?? "https://home-macmini.tail1d5579.ts.net/control/healthz";
 
