@@ -212,7 +212,7 @@ function freshnessStatus(lastUpdated: string): SystemStatus {
   return "online";
 }
 
-function getConfig(): DeyeConfig {
+export function getConfig(): DeyeConfig {
   const valueOrUndefined = (value: string | undefined) => {
     const trimmed = value?.trim();
     return trimmed ? trimmed : undefined;
