@@ -8,14 +8,14 @@ export async function GET() {
   const stationId = Number(config.stationId);
   const deviceId = config.deviceId ? Number(config.deviceId) : undefined;
 
-  const [raw, overview, deviceList, stationDetail, alertList, deviceLatest, deviceListDirect] = await Promise.allSettled([
+  const [raw, overview, listWithDevice, stationDetail, alertList, deviceLatestByDeviceId, deviceLatestByLoggerSn] = await Promise.allSettled([
     getRawStationLatest(),
     getSolarOverview(),
-    deyePost("/v1.0/station/deviceList", { stationId }),
+    deyePost("/v1.0/station/listWithDevice", { page: 1, size: 10 }),
     deyePost("/v1.0/station/detail", { stationId }),
     deyePost("/v1.0/station/alertList", { stationId }),
-    deyePost("/v1.0/device/latest", { deviceSns: [String(config.deviceId ?? "2409134407")] }),
-    deyePost("/v1.0/device/list", { page: 1, size: 10 }),
+    deyePost("/v1.0/device/latest", { deviceList: [String(config.deviceId ?? "2409134407")] }),
+    deyePost("/v1.0/device/latest", { deviceList: [String(config.loggerSn ?? "3117271959")] }),
   ]);
 
   return NextResponse.json(
@@ -23,11 +23,11 @@ export async function GET() {
       currentTime: new Date().toISOString(),
       rawStationLatest: raw.status === "fulfilled" ? raw.value : { error: String(raw.reason) },
       derivedOverview: overview.status === "fulfilled" ? overview.value : { error: String(overview.reason) },
-      deviceList: deviceList.status === "fulfilled" ? deviceList.value : { error: String(deviceList.reason) },
+      listWithDevice: listWithDevice.status === "fulfilled" ? listWithDevice.value : { error: String(listWithDevice.reason) },
       stationDetail: stationDetail.status === "fulfilled" ? stationDetail.value : { error: String(stationDetail.reason) },
       alertList: alertList.status === "fulfilled" ? alertList.value : { error: String(alertList.reason) },
-      deviceLatest: deviceLatest.status === "fulfilled" ? deviceLatest.value : { error: String(deviceLatest.reason) },
-      deviceListDirect: deviceListDirect.status === "fulfilled" ? deviceListDirect.value : { error: String(deviceListDirect.reason) },
+      deviceLatestByDeviceId: deviceLatestByDeviceId.status === "fulfilled" ? deviceLatestByDeviceId.value : { error: String(deviceLatestByDeviceId.reason) },
+      deviceLatestByLoggerSn: deviceLatestByLoggerSn.status === "fulfilled" ? deviceLatestByLoggerSn.value : { error: String(deviceLatestByLoggerSn.reason) },
     },
     { status: 200 },
   );
