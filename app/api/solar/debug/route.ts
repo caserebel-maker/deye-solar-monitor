@@ -8,7 +8,7 @@ export async function GET() {
   const stationId = Number(config.stationId);
   const deviceId = config.deviceId ? Number(config.deviceId) : undefined;
 
-  const [raw, overview, listWithDevice, stationDetail, deviceLatestWithInverterSn, deviceMeasurePoints, stationDevice, configSystem] = await Promise.allSettled([
+  const [raw, overview, listWithDevice, stationDetail, deviceLatestWithInverterSn, deviceMeasurePoints, stationDevice, configSystem, configTou, configBattery] = await Promise.allSettled([
     getRawStationLatest(),
     getSolarOverview(),
     deyePost("/v1.0/station/listWithDevice", { page: 1, size: 10 }),
@@ -17,6 +17,8 @@ export async function GET() {
     deyePost("/v1.0/device/measurePoints", { deviceSn: "2409134407", deviceType: "INVERTER" }),
     deyePost("/v1.0/station/device", { stationIds: [stationId], page: 1, size: 20 }),
     deyePost("/v1.0/config/system", { deviceSn: "2409134407" }),
+    deyePost("/v1.0/config/tou", { deviceSn: "2409134407" }),
+    deyePost("/v1.0/config/battery", { deviceSn: "2409134407" }),
   ]);
 
   return NextResponse.json(
@@ -30,6 +32,8 @@ export async function GET() {
       deviceMeasurePoints: deviceMeasurePoints.status === "fulfilled" ? deviceMeasurePoints.value : { error: String(deviceMeasurePoints.reason) },
       stationDevice: stationDevice.status === "fulfilled" ? stationDevice.value : { error: String(stationDevice.reason) },
       configSystem: configSystem.status === "fulfilled" ? configSystem.value : { error: String(configSystem.reason) },
+      configTou: configTou.status === "fulfilled" ? configTou.value : { error: String(configTou.reason) },
+      configBattery: configBattery.status === "fulfilled" ? configBattery.value : { error: String(configBattery.reason) },
     },
     { status: 200 },
   );
