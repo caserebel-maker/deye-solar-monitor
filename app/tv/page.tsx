@@ -37,6 +37,14 @@ function formatPower(value: number) {
   return `${abs.toFixed(2)} kW`;
 }
 
+function formatPowerWithSign(value: number) {
+  const sign = value < -0.005 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs < 0.001) return "0 W";
+  if (abs < 1) return `${sign}${(abs * 1000).toFixed(2)} W`;
+  return `${sign}${abs.toFixed(2)} kW`;
+}
+
 function formatEnergyToday(value: number) {
   return value.toFixed(2);
 }
@@ -733,7 +741,7 @@ export default function TvDashboardPage() {
   const inverterToBattery = flows.solarToBatteryKw;
   const gridToInverter = metrics.gridPowerKw >= 0 ? Math.max(metrics.gridPowerKw, flows.gridToHomeKw, 0) : 0;
   const inverterToGrid = metrics.gridPowerKw < 0 ? Math.max(Math.abs(metrics.gridPowerKw), flows.solarToGridKw, 0) : 0;
-  const inverterToUps = metrics.loadKw;
+  const inverterToUps = metrics.upsLoadKw ?? metrics.loadKw;
   const gridLabel = gridToInverter > 0.001 ? "Grid Import" : inverterToGrid > 0.001 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
 
@@ -812,13 +820,13 @@ export default function TvDashboardPage() {
                 {/* Repositioned: Solar/Grid moved up (y=55), Inverter moved up (y=140), Battery/Load/Home moved down (y=345) */}
                 <FlowNode compact x={90} y={55} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
                 <FlowNode x={350} y={140} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-                <FlowNode compact x={350} y={345} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+                <FlowNode compact x={350} y={345} label="UPS Load" value={formatPower(metrics.upsLoadKw ?? metrics.loadKw)} icon={Home} tone="text-violet-500" />
                 <FlowNode
                   compact
                   x={90}
                   y={345}
                   label="Battery"
-                  value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
+                  value={`${metrics.batterySoc}% · ${formatPowerWithSign(metrics.batteryPowerKw)}`}
                   icon={BatteryFull}
                   tone="text-cyan-500"
                 />
@@ -831,7 +839,7 @@ export default function TvDashboardPage() {
                   icon={PlugZap}
                   tone="text-blue-500"
                 />
-                <FlowNode compact x={610} y={345} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
+                <FlowNode compact x={610} y={345} label="Load" value={formatPowerWithSign(metrics.homeLoadKw ?? 0)} icon={Home} tone="text-emerald-500" />
               </svg>
             </div>
 

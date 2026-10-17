@@ -103,10 +103,26 @@ function formatPower(value: number) {
   return `${abs.toFixed(2)} kW`;
 }
 
+function formatPowerWithSign(value: number) {
+  const sign = value < -0.005 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs < 0.001) return "0 W";
+  if (abs < 1) return `${sign}${(abs * 1000).toFixed(2)} W`;
+  return `${sign}${abs.toFixed(2)} kW`;
+}
+
 function formatCompactPower(value: number) {
   const abs = Math.abs(value);
   if (abs < 1) return `${Math.round(abs * 1000)} W`;
   return `${abs.toFixed(2)} kW`;
+}
+
+function formatCompactPowerWithSign(value: number) {
+  const sign = value < -0.005 ? "-" : "";
+  const abs = Math.abs(value);
+  if (abs < 0.001) return "0 W";
+  if (abs < 1) return `${sign}${Math.round(abs * 1000)} W`;
+  return `${sign}${abs.toFixed(2)} kW`;
 }
 
 function formatEnergyToday(value: number) {
@@ -435,7 +451,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
   const inverterToBattery = flows.solarToBatteryKw;
   const gridToInverter = metrics.gridPowerKw >= 0 ? Math.max(metrics.gridPowerKw, flows.gridToHomeKw, 0) : 0;
   const inverterToGrid = metrics.gridPowerKw < 0 ? Math.max(Math.abs(metrics.gridPowerKw), flows.solarToGridKw, 0) : 0;
-  const inverterToUps = metrics.loadKw;
+  const inverterToUps = metrics.upsLoadKw ?? metrics.loadKw;
   const gridLabel = gridToInverter > 0.001 ? "Grid Import" : inverterToGrid > 0.001 ? "Grid Export" : "Grid";
   const gridValue = gridToInverter || inverterToGrid;
   const paths = {
@@ -500,13 +516,13 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           <FlowPath d={paths.inverterToUps} value={inverterToUps} color="#a78bfa" delay="-1.25s" />
           <FlowNode compact x={90} y={80} label="Solar" value={formatPower(metrics.solarKw)} icon={Sun} tone="text-amber-400" />
           <FlowNode x={350} y={200} label="Inverter" value="Hybrid" icon={Cpu} tone="text-indigo-500" />
-          <FlowNode compact x={350} y={360} label="UPS Load" value={formatPower(metrics.loadKw)} icon={Home} tone="text-violet-500" />
+          <FlowNode compact x={350} y={360} label="UPS Load" value={formatPower(metrics.upsLoadKw ?? metrics.loadKw)} icon={Home} tone="text-violet-500" />
           <FlowNode
             compact
             x={90}
             y={360}
             label="Battery"
-            value={`${metrics.batterySoc}% · ${formatPower(metrics.batteryPowerKw)}`}
+            value={`${metrics.batterySoc}% · ${formatPowerWithSign(metrics.batteryPowerKw)}`}
             icon={BatteryFull}
             tone="text-cyan-500"
           />
@@ -519,7 +535,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
             icon={PlugZap}
             tone="text-blue-500"
           />
-          <FlowNode compact x={610} y={360} label="Home Load" value="0 W" icon={Home} tone="text-emerald-500" />
+          <FlowNode compact x={610} y={360} label="Load" value={formatPowerWithSign(metrics.homeLoadKw ?? 0)} icon={Home} tone="text-emerald-500" />
         </svg>
         <div className="relative h-full w-full overflow-hidden lg:hidden">
           <svg viewBox="0 0 360 460" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
@@ -537,12 +553,12 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
           </svg>
           <MobileFlowNode className="left-[22%] top-[20%]" label="Production" value={formatCompactPower(metrics.solarKw)} icon={Sun} tone="text-white" />
           <MobileFlowNode core className="left-1/2 top-[51%]" label="" value="" icon={Cpu} tone="text-white" />
-          <MobileFlowNode className="left-1/2 top-[84%]" label="Ups-Load" value={formatCompactPower(metrics.loadKw)} icon={Home} tone="text-white" />
+          <MobileFlowNode className="left-1/2 top-[84%]" label="Ups-Load" value={formatCompactPower(metrics.upsLoadKw ?? metrics.loadKw)} icon={Home} tone="text-white" />
           <MobileFlowNode
             batteryLevel={metrics.batterySoc}
             className="left-[22%] top-[84%]"
             label="Battery"
-            value={formatCompactPower(metrics.batteryPowerKw)}
+            value={formatCompactPowerWithSign(metrics.batteryPowerKw)}
             icon={BatteryFull}
             tone="text-white"
           />
@@ -554,7 +570,7 @@ function EnergyFlow({ overview, weather }: { overview: SolarOverview; weather: W
             icon={PlugZap}
             tone="text-white"
           />
-          <MobileFlowNode className="left-[78%] top-[84%]" label="Load" value="0 W" icon={Home} tone="text-white" />
+          <MobileFlowNode className="left-[78%] top-[84%]" label="Load" value={formatCompactPowerWithSign(metrics.homeLoadKw ?? 0)} icon={Home} tone="text-white" />
         </div>
       </div>
       <div className="mt-3 hidden grid-cols-2 gap-3 rounded-3xl border border-white/55 bg-white/45 p-3 backdrop-blur lg:grid 2xl:grid-cols-4">

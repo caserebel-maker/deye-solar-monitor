@@ -10,6 +10,8 @@ export type SolarOverview = {
   metrics: {
     solarKw: number;
     loadKw: number;
+    upsLoadKw?: number;
+    homeLoadKw?: number;
     batterySoc: number;
     batteryPowerKw: number;
     gridPowerKw: number;
@@ -17,6 +19,8 @@ export type SolarOverview = {
     todayLoadKwh: number;
     monthlyProductionKwh: number;
     monthlyLoadKwh: number;
+    inverterTemperature?: number;
+    batteryTemperature?: number;
   };
   flows: {
     solarToHomeKw: number;
@@ -24,6 +28,7 @@ export type SolarOverview = {
     solarToGridKw: number;
     batteryToHomeKw: number;
     gridToHomeKw: number;
+    inverterToUpsKw?: number;
   };
 };
 
@@ -160,6 +165,27 @@ type DeyeStationAlerts = {
   alertList?: DeyeAlertItem[];
 };
 
+type DeyeDeviceDataItem = {
+  key?: string;
+  value?: string;
+  unit?: string | null;
+};
+
+type DeyeDeviceLatestData = {
+  deviceSn?: string;
+  deviceType?: string;
+  deviceState?: number;
+  collectionTime?: number;
+  dataList?: DeyeDeviceDataItem[];
+};
+
+type DeyeDeviceLatestResponse = {
+  code?: string;
+  msg?: string;
+  success?: boolean;
+  deviceDataList?: DeyeDeviceLatestData[];
+};
+
 type TokenResponse = {
   success?: boolean;
   msg?: string;
@@ -269,6 +295,8 @@ export function mockOverview(): SolarOverview {
     metrics: {
       solarKw,
       loadKw,
+      upsLoadKw: loadKw,
+      homeLoadKw: 0,
       batterySoc: Math.round(wave(2.4, 54, 91)),
       batteryPowerKw,
       gridPowerKw,
@@ -283,6 +311,7 @@ export function mockOverview(): SolarOverview {
       solarToGridKw: Math.max(solarKw - loadKw - charging, 0),
       batteryToHomeKw: discharging,
       gridToHomeKw: gridPowerKw,
+      inverterToUpsKw: loadKw,
     },
   };
 }
@@ -295,6 +324,8 @@ function offlineOverview(): SolarOverview {
     metrics: {
       solarKw: 0,
       loadKw: 0,
+      upsLoadKw: 0,
+      homeLoadKw: 0,
       batterySoc: 0,
       batteryPowerKw: 0,
       gridPowerKw: 0,
@@ -309,6 +340,7 @@ function offlineOverview(): SolarOverview {
       solarToGridKw: 0,
       batteryToHomeKw: 0,
       gridToHomeKw: 0,
+      inverterToUpsKw: 0,
     },
   };
 }
@@ -617,18 +649,91 @@ function ensureSuccess(response: { success?: boolean; msg?: string }, label: str
   }
 }
 
-function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStationHistory): SolarOverview {
+function parseDeviceMetrics(deviceResponse?: DeyeDeviceLatestResponse) {
+  const inverter =
+    deviceResponse?.deviceDataList?.find((d) => d.deviceType === "INVERTER" || d.deviceSn === "2409134407") ??
+    deviceResponse?.deviceDataList?.[0];
+  if (!inverter?.dataList) return null;
+
+  const dataMap = new Map<string, string>();
+  for (const item of inverter.dataList) {
+    if (item.key && item.value !== undefined) {
+      dataMap.set(item.key, item.value);
+    }
+  }
+
+  const getNum = (key: string): number | undefined => {
+    const val = dataMap.get(key);
+    if (val === undefined || val === null || val === "") return undefined;
+    const num = parseFloat(val);
+    return Number.isFinite(num) ? num : undefined;
+  };
+
+  return {
+    upsLoadPower: getNum("UPSLoadPower"),
+    totalConsumptionPower: getNum("TotalConsumptionPower"),
+    externalCtPower: getNum("ExternalCTPowerL1L2"),
+    totalGridPower: getNum("TotalGridPower"),
+    inverterOutputPower: getNum("InverterOutputPowerL1L2"),
+    batteryPower: getNum("BatteryPower"),
+    soc: getNum("SOC"),
+    dailyActiveProduction: getNum("DailyActiveProduction"),
+    dailyConsumption: getNum("DailyConsumption"),
+    acTemperature: getNum("AC Temperature"),
+    dcTemperature: getNum("DC Temperature"),
+    batteryTemperature: getNum("Temperature- Battery"),
+    collectionTime: inverter.collectionTime,
+  };
+}
+
+function stationLatestToOverview(
+  station: DeyeStationLatest,
+  month?: DeyeStationHistory,
+  deviceResponse?: DeyeDeviceLatestResponse,
+): SolarOverview {
+  const deviceData = parseDeviceMetrics(deviceResponse);
   const lastUpdated = parseDeyeDate(station.lastUpdateTime);
   const solarKw = powerKw(station.generationPower);
-  const loadKw = powerKw(station.consumptionPower);
+
+  // Load calculations matching Deye App:
+  const rawStationLoadKw = powerKw(station.consumptionPower);
+  const deviceUpsLoadKw = deviceData?.upsLoadPower !== undefined ? powerKw(deviceData.upsLoadPower) : undefined;
+  const deviceTotalConsumptionKw =
+    deviceData?.totalConsumptionPower !== undefined ? powerKw(deviceData.totalConsumptionPower) : undefined;
+
+  // Real UPS Load (matches Deye App's "UPS-Load"):
+  const upsLoadKw = deviceUpsLoadKw !== undefined ? deviceUpsLoadKw : rawStationLoadKw;
+
+  // Real total house load:
+  // In Deye hybrid installations where all loads are behind the UPS backup port,
+  // station consumptionPower cancels out to 0 due to reverse CT sensor.
+  // Use upsLoadKw so that all load cards, graphs, and utilization metrics reflect real consumption.
+  const loadKw = rawStationLoadKw > 0.005 ? rawStationLoadKw : upsLoadKw;
+
+  // Non-UPS Load (matches Deye App's "Load" node):
+  // Deye firmware calculates: Non-UPS Load = TotalConsumptionPower - UPSLoadPower
+  let homeLoadKw = 0;
+  if (deviceTotalConsumptionKw !== undefined && deviceUpsLoadKw !== undefined) {
+    homeLoadKw = Number((deviceTotalConsumptionKw - deviceUpsLoadKw).toFixed(3));
+  } else if (rawStationLoadKw > 0 && upsLoadKw > 0) {
+    homeLoadKw = Number((rawStationLoadKw - upsLoadKw).toFixed(3));
+  }
+
   const chargeKw = powerKw(station.chargePower);
   const dischargeKw = powerKw(station.dischargePower);
   const purchaseKw = powerKw(station.purchasePower);
   const wireKw = powerKw(station.wirePower);
-  const rawBatteryKw = station.batteryPower !== undefined ? powerKw(station.batteryPower) : dischargeKw - chargeKw;
+
+  const rawBatteryKw =
+    station.batteryPower !== undefined
+      ? powerKw(station.batteryPower)
+      : deviceData?.batteryPower !== undefined
+        ? powerKw(deviceData.batteryPower)
+        : dischargeKw - chargeKw;
   const batteryDischargeKw = Math.max(dischargeKw, rawBatteryKw, 0);
   const batteryChargeKw = Math.max(chargeKw, -rawBatteryKw, 0);
   const batteryPowerKw = Number((batteryDischargeKw - batteryChargeKw).toFixed(3));
+
   const rawGridKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - wireKw;
   const solarSurplusKw = Math.max(solarKw - loadKw - batteryChargeKw, 0);
   const loadDeficitKw = Math.max(loadKw + batteryChargeKw - solarKw - batteryDischargeKw, 0);
@@ -642,6 +747,7 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
       ? Math.min(rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, solarSurplusKw)
       : Math.min(Math.max(wireKw, rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, 0), solarSurplusKw);
   const gridPowerKw = Number((gridImportKw - gridExportKw).toFixed(3));
+
   const now = new Date();
   const todayKeyUtc = dateString(now);
   const todayKeyBkk = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(now);
@@ -650,9 +756,21 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
       const k = stationDateKey(item);
       return k === todayKeyBkk || k === todayKeyUtc;
     }) ?? month?.stationDataItems?.at(-1);
+
   const monthTotals = month?.stationDataItems ?? [];
   const monthlyProductionKwh = monthTotals.reduce((total, item) => total + numberOr(item.generationValue, 0), 0);
   const monthlyLoadKwh = monthTotals.reduce((total, item) => total + numberOr(item.consumptionValue, 0), 0);
+
+  // Real-time production and consumption from inverter registers if available
+  const todayProductionKwh =
+    deviceData?.dailyActiveProduction !== undefined && deviceData.dailyActiveProduction > 0
+      ? deviceData.dailyActiveProduction
+      : numberOr(today?.generationValue, 0);
+
+  const todayLoadKwh =
+    deviceData?.dailyConsumption !== undefined && deviceData.dailyConsumption > 0
+      ? deviceData.dailyConsumption
+      : numberOr(today?.consumptionValue, 0);
 
   return {
     source: "live",
@@ -661,25 +779,37 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
     metrics: {
       solarKw,
       loadKw,
-      batterySoc: numberOr(station.batterySOC, 0),
+      upsLoadKw,
+      homeLoadKw,
+      batterySoc: deviceData?.soc !== undefined ? Math.round(deviceData.soc) : numberOr(station.batterySOC, 0),
       batteryPowerKw,
       gridPowerKw,
-      todayProductionKwh: numberOr(today?.generationValue, 0),
-      todayLoadKwh: numberOr(today?.consumptionValue, 0),
+      todayProductionKwh,
+      todayLoadKwh,
       monthlyProductionKwh,
       monthlyLoadKwh,
+      inverterTemperature: deviceData?.acTemperature ?? deviceData?.dcTemperature,
+      batteryTemperature: deviceData?.batteryTemperature,
     },
     flows: {
       solarToHomeKw: Math.min(solarKw, loadKw),
       solarToBatteryKw: batteryChargeKw,
       solarToGridKw: gridExportKw,
-      batteryToHomeKw: batteryDischargeKw,
-      gridToHomeKw: gridImportKw,
+      batteryToHomeKw: Math.min(batteryDischargeKw, loadKw),
+      gridToHomeKw: Math.min(gridImportKw, loadKw),
+      inverterToUpsKw: upsLoadKw,
     },
   };
 }
 
-function historyToDashboard(daily: DeyeStationHistory, power: DeyeStationHistory): SolarHistory {
+function historyToDashboard(
+  daily: DeyeStationHistory,
+  power: DeyeStationHistory,
+  deviceResponse?: DeyeDeviceLatestResponse,
+): SolarHistory {
+  const deviceData = parseDeviceMetrics(deviceResponse);
+  const currentUpsLoadKw = deviceData?.upsLoadPower !== undefined ? powerKw(deviceData.upsLoadPower) : undefined;
+
   const dailyProduction =
     daily.stationDataItems?.map((item, index) => ({
       day: item.day
@@ -690,14 +820,20 @@ function historyToDashboard(daily: DeyeStationHistory, power: DeyeStationHistory
     })) ?? [];
 
   const powerPoints =
-    power.stationDataItems?.map((item) => ({
-      time: item.timeStamp
-        ? new Date(parseDeyeDate(item.timeStamp)).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-        : "",
-      solarKw: powerKw(item.generationPower),
-      loadKw: powerKw(item.consumptionPower),
-      batterySoc: numberOr(item.batterySOC, 0),
-    })) ?? [];
+    power.stationDataItems?.map((item, index, arr) => {
+      let loadKw = powerKw(item.consumptionPower);
+      if (index === arr.length - 1 && loadKw <= 0.005 && currentUpsLoadKw !== undefined && currentUpsLoadKw > 0.005) {
+        loadKw = currentUpsLoadKw;
+      }
+      return {
+        time: item.timeStamp
+          ? new Date(parseDeyeDate(item.timeStamp)).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+          : "",
+        solarKw: powerKw(item.generationPower),
+        loadKw,
+        batterySoc: numberOr(item.batterySOC, 0),
+      };
+    }) ?? [];
 
   return {
     source: "live",
@@ -759,24 +895,33 @@ export async function getSolarOverview(): Promise<SolarOverview> {
     nextDay.setDate(today.getDate() + 1);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const endAt = dateString(nextDay);
-    const latest = await deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) });
-    ensureSuccess(latest, "Deye station latest");
+    const inverterSn = config.deviceId && config.deviceId.length >= 10 ? config.deviceId : "2409134407";
 
-    const month = await deyePost<DeyeStationHistory>("/v1.0/station/history", {
+    const [latest, month, deviceLatest] = await Promise.all([
+      deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) }),
+      deyePost<DeyeStationHistory>("/v1.0/station/history", {
         stationId: Number(config.stationId),
         granularity: 2,
         startAt: dateString(monthStart),
         endAt,
       })
-      .then((response) => {
-        ensureSuccess(response, "Deye station history");
-        return response;
-      })
-      .catch((error) => {
-        console.error(error);
+        .then((response) => {
+          ensureSuccess(response, "Deye station history");
+          return response;
+        })
+        .catch((error) => {
+          console.error(error);
+          return undefined;
+        }),
+      deyePost<DeyeDeviceLatestResponse>("/v1.0/device/latest", {
+        deviceList: [inverterSn],
+      }).catch((error) => {
+        console.error("Deye device latest error:", error);
         return undefined;
-      });
-    return stationLatestToOverview(latest, month);
+      }),
+    ]);
+    ensureSuccess(latest, "Deye station latest");
+    return stationLatestToOverview(latest, month, deviceLatest);
   } catch (error) {
     console.error(error);
     return offlineOverview();
@@ -794,7 +939,9 @@ export async function getSolarHistory(): Promise<SolarHistory> {
     const startOfToday = startOfLocalDay(today);
     const fourteenDaysAgo = new Date(today);
     fourteenDaysAgo.setDate(today.getDate() - 13);
-    const [daily, power] = await Promise.all([
+    const inverterSn = config.deviceId && config.deviceId.length >= 10 ? config.deviceId : "2409134407";
+
+    const [daily, power, deviceLatest] = await Promise.all([
       deyePost<DeyeStationHistory>("/v1.0/station/history", {
         stationId: Number(config.stationId),
         granularity: 2,
@@ -806,10 +953,13 @@ export async function getSolarHistory(): Promise<SolarHistory> {
         startTimestamp: toUnixSeconds(startOfToday),
         endTimestamp: toUnixSeconds(today),
       }),
+      deyePost<DeyeDeviceLatestResponse>("/v1.0/device/latest", {
+        deviceList: [inverterSn],
+      }).catch(() => undefined),
     ]);
     ensureSuccess(daily, "Deye daily history");
     ensureSuccess(power, "Deye power history");
-    return historyToDashboard(daily, power);
+    return historyToDashboard(daily, power, deviceLatest);
   } catch (error) {
     console.error(error);
     return mockHistory();
