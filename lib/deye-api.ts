@@ -642,7 +642,14 @@ function stationLatestToOverview(station: DeyeStationLatest, month?: DeyeStation
       ? Math.min(rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, solarSurplusKw)
       : Math.min(Math.max(wireKw, rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, 0), solarSurplusKw);
   const gridPowerKw = Number((gridImportKw - gridExportKw).toFixed(3));
-  const today = month?.stationDataItems?.at(-1);
+  const now = new Date();
+  const todayKeyUtc = dateString(now);
+  const todayKeyBkk = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(now);
+  const today =
+    month?.stationDataItems?.find((item) => {
+      const k = stationDateKey(item);
+      return k === todayKeyBkk || k === todayKeyUtc;
+    }) ?? month?.stationDataItems?.at(-1);
   const monthTotals = month?.stationDataItems ?? [];
   const monthlyProductionKwh = monthTotals.reduce((total, item) => total + numberOr(item.generationValue, 0), 0);
   const monthlyLoadKwh = monthTotals.reduce((total, item) => total + numberOr(item.consumptionValue, 0), 0);
@@ -748,8 +755,10 @@ export async function getSolarOverview(): Promise<SolarOverview> {
 
   try {
     const today = new Date();
+    const nextDay = new Date(today);
+    nextDay.setDate(today.getDate() + 1);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endAt = dateString(today);
+    const endAt = dateString(nextDay);
     const latest = await deyePost<DeyeStationLatest>("/v1.0/station/latest", { stationId: Number(config.stationId) });
     ensureSuccess(latest, "Deye station latest");
 
