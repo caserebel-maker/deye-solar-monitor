@@ -5,7 +5,7 @@ import { getWeatherForecast } from "@/lib/weather";
 // ISR: Vercel caches the response for 60 seconds. Multiple clients polling
 // within that window get served from cache — only one function invocation per
 // 60-second window regardless of how many browsers are open.
-export const revalidate = 60;
+export const revalidate = 10;
 
 export async function GET() {
   try {
@@ -18,7 +18,7 @@ export async function GET() {
 
     return NextResponse.json({ overview, history, alarms, weather }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30',
+        'Cache-Control': 'public, s-maxage=10, stale-while-revalidate=20',
       },
     });
   } catch (error) {

@@ -6,7 +6,7 @@ export async function GET() {
     return NextResponse.json(await getSolarOverview(), {
       headers: {
         "Cache-Control": "public, max-age=0, must-revalidate",
-        "Vercel-CDN-Cache-Control": "s-maxage=55, stale-while-revalidate=120",
+        "Vercel-CDN-Cache-Control": "s-maxage=10, stale-while-revalidate=20",
       },
     });
   } catch (error) {

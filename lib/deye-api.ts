@@ -721,17 +721,23 @@ function stationLatestToOverview(
 
   const chargeKw = powerKw(station.chargePower);
   const dischargeKw = powerKw(station.dischargePower);
-  const purchaseKw = powerKw(station.purchasePower);
-  const wireKw = powerKw(station.wirePower);
-
+  const deviceBatteryKw = deviceData?.batteryPower !== undefined ? powerKw(deviceData.batteryPower) : undefined;
+  const isStationCharging = station.chargePower !== undefined && station.chargePower !== null && station.chargePower > 0;
+  
+  // Prioritize real-time inverter Modbus register BatteryPower over station summary
   const rawBatteryKw =
-    station.batteryPower !== undefined
-      ? powerKw(station.batteryPower)
-      : deviceData?.batteryPower !== undefined
-        ? powerKw(deviceData.batteryPower)
+    deviceBatteryKw !== undefined
+      ? (isStationCharging ? -Math.abs(deviceBatteryKw) : Math.abs(deviceBatteryKw))
+      : station.batteryPower !== undefined
+        ? powerKw(station.batteryPower)
         : dischargeKw - chargeKw;
-  const batteryDischargeKw = Math.max(dischargeKw, rawBatteryKw, 0);
-  const batteryChargeKw = Math.max(chargeKw, -rawBatteryKw, 0);
+
+  const batteryDischargeKw = !isStationCharging
+    ? Math.max(dischargeKw, rawBatteryKw, deviceBatteryKw ?? 0, 0)
+    : 0;
+  const batteryChargeKw = isStationCharging
+    ? Math.max(chargeKw, Math.abs(rawBatteryKw), deviceBatteryKw ?? 0, 0)
+    : Math.max(chargeKw, -rawBatteryKw, 0);
   const batteryPowerKw = Number((batteryDischargeKw - batteryChargeKw).toFixed(3));
 
   // Grid Power calculations matching Deye App:
