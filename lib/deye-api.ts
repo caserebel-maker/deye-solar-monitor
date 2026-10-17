@@ -734,19 +734,26 @@ function stationLatestToOverview(
   const batteryChargeKw = Math.max(chargeKw, -rawBatteryKw, 0);
   const batteryPowerKw = Number((batteryDischargeKw - batteryChargeKw).toFixed(3));
 
-  const rawGridKw = station.gridPower !== undefined ? powerKw(station.gridPower) : purchaseKw - wireKw;
-  const solarSurplusKw = Math.max(solarKw - loadKw - batteryChargeKw, 0);
-  const loadDeficitKw = Math.max(loadKw + batteryChargeKw - solarKw - batteryDischargeKw, 0);
-  const gridStandbyKw = Math.abs(rawGridKw) <= 0.005 && purchaseKw <= 0.005 && solarSurplusKw > 0.005 ? 0.02 : 0;
-  const gridImportKw =
-    station.gridPower !== undefined
-      ? Math.max(purchaseKw, rawGridKw > 0.005 ? rawGridKw : 0, rawGridKw >= -0.005 ? loadDeficitKw : 0, gridStandbyKw, 0)
-      : Math.max(purchaseKw, rawGridKw > 0.005 ? rawGridKw : 0, loadDeficitKw > 0.005 ? Math.max(wireKw, loadDeficitKw) : 0, 0);
-  const gridExportKw =
-    station.gridPower !== undefined
-      ? Math.min(rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, solarSurplusKw)
-      : Math.min(Math.max(wireKw, rawGridKw < -0.005 ? Math.abs(rawGridKw) : 0, 0), solarSurplusKw);
-  const gridPowerKw = Number((gridImportKw - gridExportKw).toFixed(3));
+  // Grid Power calculations matching Deye App:
+  // Deye App reads the actual grid sensor: TotalGridPower / ExternalCTPower / wirePower.
+  // In Deye API, negative wirePower / TotalGridPower means importing from the grid (e.g. -30W = 30W import).
+  const realGridWatts =
+    deviceData?.totalGridPower !== undefined
+      ? deviceData.totalGridPower
+      : deviceData?.externalCtPower !== undefined
+        ? deviceData.externalCtPower
+        : station.wirePower !== undefined
+          ? station.wirePower
+          : station.gridPower !== undefined
+            ? station.gridPower
+            : 0;
+
+  // In our dashboard, positive gridPowerKw means Grid Import, negative means Grid Export.
+  const isImporting = realGridWatts <= 0;
+  const gridWattsAbs = Math.abs(realGridWatts);
+  const gridPowerKw = isImporting ? powerKw(gridWattsAbs) : -powerKw(gridWattsAbs);
+  const gridImportKw = isImporting ? powerKw(gridWattsAbs) : 0;
+  const gridExportKw = !isImporting ? powerKw(gridWattsAbs) : 0;
 
   const now = new Date();
   const todayKeyUtc = dateString(now);
