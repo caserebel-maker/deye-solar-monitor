@@ -676,6 +676,7 @@ function parseDeviceMetrics(deviceResponse?: DeyeDeviceLatestResponse) {
     totalGridPower: getNum("TotalGridPower"),
     inverterOutputPower: getNum("InverterOutputPowerL1L2"),
     batteryPower: getNum("BatteryPower"),
+    batteryCurrent: getNum("BatteryCurrent"),
     soc: getNum("SOC"),
     dailyActiveProduction: getNum("DailyActiveProduction"),
     dailyConsumption: getNum("DailyConsumption"),
@@ -719,25 +720,27 @@ function stationLatestToOverview(
     homeLoadKw = Number((rawStationLoadKw - upsLoadKw).toFixed(3));
   }
 
-  const chargeKw = powerKw(station.chargePower);
-  const dischargeKw = powerKw(station.dischargePower);
+  const chargeKw = powerKw(Math.abs(station.chargePower ?? 0));
+  const dischargeKw = powerKw(Math.abs(station.dischargePower ?? 0));
   const deviceBatteryKw = deviceData?.batteryPower !== undefined ? powerKw(deviceData.batteryPower) : undefined;
-  const isStationCharging = station.chargePower !== undefined && station.chargePower !== null && station.chargePower > 0;
   
-  // Prioritize real-time inverter Modbus register BatteryPower over station summary
+  // In Deye Modbus and Station API:
+  // Negative battery power (< -0.01 kW) or negative battery current = Charging
+  // Positive battery power (> 0.05 kW) = Discharging
   const rawBatteryKw =
     deviceBatteryKw !== undefined
-      ? (isStationCharging ? -Math.abs(deviceBatteryKw) : Math.abs(deviceBatteryKw))
+      ? deviceBatteryKw
       : station.batteryPower !== undefined
         ? powerKw(station.batteryPower)
-        : dischargeKw - chargeKw;
+        : (station.chargePower && Math.abs(station.chargePower) > 10 ? -chargeKw : dischargeKw);
 
-  const batteryDischargeKw = !isStationCharging
-    ? Math.max(dischargeKw, rawBatteryKw, deviceBatteryKw ?? 0, 0)
-    : 0;
-  const batteryChargeKw = isStationCharging
-    ? Math.max(chargeKw, Math.abs(rawBatteryKw), deviceBatteryKw ?? 0, 0)
-    : Math.max(chargeKw, -rawBatteryKw, 0);
+  const isCharging =
+    rawBatteryKw < -0.01 ||
+    (deviceData?.batteryCurrent !== undefined && deviceData.batteryCurrent < -0.5) ||
+    (station.chargePower !== undefined && station.chargePower !== null && Math.abs(station.chargePower) > 10 && !station.dischargePower);
+
+  const batteryChargeKw = isCharging ? Math.abs(rawBatteryKw) : 0;
+  const batteryDischargeKw = !isCharging && rawBatteryKw > 0.05 ? rawBatteryKw : 0;
   const batteryPowerKw = Number((batteryDischargeKw - batteryChargeKw).toFixed(3));
 
   // Grid Power calculations matching Deye App:
