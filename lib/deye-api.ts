@@ -677,6 +677,8 @@ function parseDeviceMetrics(deviceResponse?: DeyeDeviceLatestResponse) {
     inverterOutputPower: getNum("InverterOutputPowerL1L2"),
     batteryPower: getNum("BatteryPower"),
     batteryCurrent: getNum("BatteryCurrent"),
+    gridVoltage: getNum("GridVoltageL1L2"),
+    gridCurrent: getNum("GridCurrentL1L2"),
     soc: getNum("SOC"),
     dailyActiveProduction: getNum("DailyActiveProduction"),
     dailyConsumption: getNum("DailyConsumption"),
@@ -715,9 +717,9 @@ function stationLatestToOverview(
   // Deye firmware calculates: Non-UPS Load = TotalConsumptionPower - UPSLoadPower
   let homeLoadKw = 0;
   if (deviceTotalConsumptionKw !== undefined && deviceUpsLoadKw !== undefined) {
-    homeLoadKw = Number((deviceTotalConsumptionKw - deviceUpsLoadKw).toFixed(3));
+    homeLoadKw = Math.max(0, Number((deviceTotalConsumptionKw - deviceUpsLoadKw).toFixed(3)));
   } else if (rawStationLoadKw > 0 && upsLoadKw > 0) {
-    homeLoadKw = Number((rawStationLoadKw - upsLoadKw).toFixed(3));
+    homeLoadKw = Math.max(0, Number((rawStationLoadKw - upsLoadKw).toFixed(3)));
   }
 
   const chargeKw = powerKw(Math.abs(station.chargePower ?? 0));
@@ -743,10 +745,14 @@ function stationLatestToOverview(
   const batteryDischargeKw = !isCharging && rawBatteryKw > 0.05 ? rawBatteryKw : 0;
   const batteryPowerKw = Number((batteryDischargeKw - batteryChargeKw).toFixed(3));
 
-  // Grid Power calculations matching Deye App:
-  // Deye App reads the actual grid sensor: TotalGridPower / ExternalCTPower / wirePower.
-  // In Deye API, negative wirePower / TotalGridPower means importing from the grid (e.g. -30W = 30W import).
-  const realGridWatts =
+  // Grid Power calculations:
+  // 1. Modbus Grid AC terminal current & voltage (real physical electricity flowing across grid terminals):
+  const gridV = deviceData?.gridVoltage ?? 0;
+  const gridA = deviceData?.gridCurrent ?? 0;
+  const measuredTerminalGridWatts = gridV > 100 && gridA > 0.2 ? gridV * gridA : 0;
+
+  // 2. CT sensor / wire power readings:
+  const ctGridWatts =
     deviceData?.totalGridPower !== undefined
       ? deviceData.totalGridPower
       : deviceData?.externalCtPower !== undefined
@@ -756,6 +762,16 @@ function stationLatestToOverview(
           : station.gridPower !== undefined
             ? station.gridPower
             : 0;
+
+  // Real Grid Import logic:
+  // When CT sensor is inverted / stuck at zero-export offset while grid terminal is actively passing current (> 0.5A),
+  // prioritize the real physical electrical measurement (measuredTerminalGridWatts).
+  const isNightOrDeficit = solarKw < 0.05 || (upsLoadKw > solarKw + 0.1);
+  let realGridWatts = ctGridWatts;
+  if (measuredTerminalGridWatts > 50 && isNightOrDeficit) {
+    // Negative watts in Deye API convention means Import from Grid
+    realGridWatts = -measuredTerminalGridWatts;
+  }
 
   // In our dashboard, positive gridPowerKw means Grid Import, negative means Grid Export.
   const isImporting = realGridWatts <= 0;
