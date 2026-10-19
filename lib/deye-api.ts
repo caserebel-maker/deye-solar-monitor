@@ -764,13 +764,23 @@ function stationLatestToOverview(
             : 0;
 
   // Real Grid Import logic:
-  // When CT sensor is inverted / stuck at zero-export offset while grid terminal is actively passing current (> 0.5A),
-  // prioritize the real physical electrical measurement (measuredTerminalGridWatts).
-  const isNightOrDeficit = solarKw < 0.05 || (upsLoadKw > solarKw + 0.1);
+  // Calculate active deficit needed from the grid after solar and battery discharge.
+  // When inverter and battery are actively supplying the load, the AC terminal current (gridA)
+  // mostly represents reactive filter current (~4-5A) rather than active billed kWh.
+  const actualInverterOutputKw =
+    deviceData?.inverterOutputPower !== undefined && deviceData.inverterOutputPower > 50
+      ? powerKw(deviceData.inverterOutputPower)
+      : solarKw + (batteryDischargeKw > 0.05 ? batteryDischargeKw * 0.95 : 0);
+
+  const activeDeficitKw = Math.max(0, upsLoadKw - actualInverterOutputKw);
   let realGridWatts = ctGridWatts;
-  if (measuredTerminalGridWatts > 50 && isNightOrDeficit) {
-    // Negative watts in Deye API convention means Import from Grid
-    realGridWatts = -measuredTerminalGridWatts;
+
+  if (activeDeficitKw > 0.1) {
+    // When load exceeds inverter+battery supply, grid provides active power to cover deficit
+    const neededGridWatts = Math.min(measuredTerminalGridWatts > 50 ? measuredTerminalGridWatts : activeDeficitKw * 1000, activeDeficitKw * 1000);
+    realGridWatts = -Math.max(neededGridWatts, Math.abs(ctGridWatts));
+  } else if (Math.abs(ctGridWatts) > 0) {
+    realGridWatts = ctGridWatts;
   }
 
   // In our dashboard, positive gridPowerKw means Grid Import, negative means Grid Export.
