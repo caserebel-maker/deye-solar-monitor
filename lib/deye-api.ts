@@ -786,13 +786,14 @@ function stationLatestToOverview(
   // In our dashboard, positive gridPowerKw means Grid Import, negative means Grid Export.
   // Note on Zero-Export offset: The anti-backfeed controller maintains a tiny ~30W buffer.
   // At night (solarKw <= 0.05) or in Zero Export mode without solar surplus, the system NEVER exports battery power to the grid.
-  const hasSolarSurplus = solarKw > loadKw + 0.1;
-  const isRealExport = hasSolarSurplus && realGridWatts > 50;
+  // Real Solar Surplus must exceed load AND battery charging by at least 100W:
+  const hasSolarSurplus = solarKw > (loadKw + batteryChargeKw + 0.1);
+  const isRealExport = hasSolarSurplus && realGridWatts > 100;
 
   const isImporting = !isRealExport;
   const gridWattsAbs = Math.abs(realGridWatts);
-  // If tiny offset <= 45W in zero-export standby, treat as 0 so no false flow lines appear
-  const effectiveGridKw = gridWattsAbs < 45 && !hasSolarSurplus ? 0 : powerKw(gridWattsAbs);
+  // If tiny regulation offset <= 80W in zero-export mode, treat as 0 so no false flow lines appear
+  const effectiveGridKw = gridWattsAbs < 80 && !hasSolarSurplus ? 0 : powerKw(gridWattsAbs);
 
   const gridPowerKw = isImporting ? effectiveGridKw : -effectiveGridKw;
   const gridImportKw = isImporting ? effectiveGridKw : 0;
